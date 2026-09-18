@@ -1,23 +1,44 @@
-const User = require("../models/User");
-
 const bcrypt = require("bcryptjs");
-
 const jwt = require("jsonwebtoken");
 
+const User = require("../models/User");
+
 // ======================================
-// Generate JWT
+// Generate Token
 // ======================================
 
-const generateToken = (userId) => {
+const generateToken = (id) => {
   return jwt.sign(
     {
-      id: userId,
+      id,
     },
 
     process.env.JWT_SECRET,
 
     {
-      expiresIn: "7d",
+      expiresIn: process.env.JWT_EXPIRE || "7d",
+    },
+  );
+};
+
+// ======================================
+// Set Cookie
+// ======================================
+
+const setTokenCookie = (res, token) => {
+  res.cookie(
+    "token",
+
+    token,
+
+    {
+      httpOnly: true,
+
+      secure: process.env.NODE_ENV === "production",
+
+      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+
+      maxAge: 7 * 24 * 60 * 60 * 1000,
     },
   );
 };
@@ -34,19 +55,19 @@ exports.signup = async (req, res) => {
       return res.status(400).json({
         success: false,
 
-        message: "All fields are required",
+        message: "All fields required",
       });
     }
 
-    const existingUser = await User.findOne({
+    const exists = await User.findOne({
       email,
     });
 
-    if (existingUser) {
+    if (exists) {
       return res.status(400).json({
         success: false,
 
-        message: "User already exists",
+        message: "Email already exists",
       });
     }
 
@@ -62,27 +83,13 @@ exports.signup = async (req, res) => {
 
     const token = generateToken(user._id);
 
-    res.cookie(
-      "token",
+    setTokenCookie(res, token);
 
-      token,
-
-      {
-        httpOnly: true,
-
-        secure: false,
-
-        sameSite: "lax",
-
-        maxAge: 7 * 24 * 60 * 60 * 1000,
-      },
-    );
-
-    return res.status(201).json({
+    res.status(201).json({
       success: true,
 
       user: {
-        _id: user._id,
+        id: user._id,
 
         name: user.name,
 
@@ -90,9 +97,9 @@ exports.signup = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("Signup Error:", error.message);
+    console.log(error);
 
-    return res.status(500).json({
+    res.status(500).json({
       success: false,
 
       message: error.message,
@@ -128,8 +135,6 @@ exports.login = async (req, res) => {
       });
     }
 
-    // Password safety
-
     if (!user.password) {
       return res.status(500).json({
         success: false,
@@ -154,27 +159,13 @@ exports.login = async (req, res) => {
 
     const token = generateToken(user._id);
 
-    res.cookie(
-      "token",
+    setTokenCookie(res, token);
 
-      token,
-
-      {
-        httpOnly: true,
-
-        secure: false,
-
-        sameSite: "lax",
-
-        maxAge: 7 * 24 * 60 * 60 * 1000,
-      },
-    );
-
-    return res.json({
+    res.json({
       success: true,
 
       user: {
-        _id: user._id,
+        id: user._id,
 
         name: user.name,
 
@@ -182,9 +173,9 @@ exports.login = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("Login Error:", error.message);
+    console.log(error);
 
-    return res.status(500).json({
+    res.status(500).json({
       success: false,
 
       message: error.message,
@@ -197,73 +188,11 @@ exports.login = async (req, res) => {
 // ======================================
 
 exports.logout = async (req, res) => {
-  try {
-    res.clearCookie("token", {
-      httpOnly: true,
+  res.clearCookie("token");
 
-      secure: false,
+  res.json({
+    success: true,
 
-      sameSite: "lax",
-    });
-
-    return res.json({
-      success: true,
-
-      message: "Logged out successfully",
-    });
-  } catch (error) {
-    return res.status(500).json({
-      success: false,
-
-      message: error.message,
-    });
-  }
-};
-
-// ======================================
-// Get Current User
-// ======================================
-
-exports.getMe = async (req, res) => {
-  try {
-    const user = await User.findById(req.user._id).select("-password");
-
-    return res.json({
-      success: true,
-
-      user,
-    });
-  } catch (error) {
-    return res.status(500).json({
-      success: false,
-
-      message: error.message,
-    });
-  }
-};
-
-// ======================================
-// Get Logged User Profile
-// ======================================
-
-exports.getProfile = async (req, res) => {
-  try {
-    return res.json({
-      success: true,
-
-      user: {
-        _id: req.user._id,
-
-        name: req.user.name,
-
-        email: req.user.email,
-      },
-    });
-  } catch (error) {
-    return res.status(500).json({
-      success: false,
-
-      message: error.message,
-    });
-  }
+    message: "Logged out successfully",
+  });
 };

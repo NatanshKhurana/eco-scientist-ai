@@ -24,25 +24,24 @@ export default function useChatStream() {
 
     setError(null);
 
-    const sessionId = getSessionId();
-
     const conversationId = getConversationId();
 
-    const userMessage = {
-      role: "user",
+    const sessionId = getSessionId();
 
-      content: message.trim(),
-    };
+    setMessages((previous) => [
+      ...previous,
 
-    const assistantMessage = {
-      role: "assistant",
+      {
+        role: "user",
+        content: message.trim(),
+      },
 
-      content: "",
-
-      streaming: true,
-    };
-
-    setMessages((previous) => [...previous, userMessage, assistantMessage]);
+      {
+        role: "assistant",
+        content: "",
+        streaming: true,
+      },
+    ]);
 
     setIsStreaming(true);
 
@@ -55,6 +54,8 @@ export default function useChatStream() {
         {
           method: "POST",
 
+          credentials: "include",
+
           headers: {
             "Content-Type": "application/json",
           },
@@ -62,9 +63,11 @@ export default function useChatStream() {
           body: JSON.stringify({
             message: message.trim(),
 
-            sessionId,
-
             conversationId: conversationId || undefined,
+
+            // only guest needs session
+
+            sessionId,
           }),
 
           signal: abortController.current.signal,
@@ -124,7 +127,17 @@ export default function useChatStream() {
           }
 
           // =====================
-          // Stream Text
+          // Meta
+          // =====================
+
+          if (data.type === "meta") {
+            if (data.conversationId) {
+              setConversationId(data.conversationId);
+            }
+          }
+
+          // =====================
+          // Content
           // =====================
 
           if (data.type === "content") {
@@ -137,7 +150,7 @@ export default function useChatStream() {
                 updated[index] = {
                   ...updated[index],
 
-                  content: updated[index].content + data.text,
+                  content: updated[index].content + (data.text || ""),
                 };
               }
 

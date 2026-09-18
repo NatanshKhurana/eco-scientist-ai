@@ -1,46 +1,57 @@
 import { createContext, useContext, useEffect, useState } from "react";
 
 import useChatStream from "../hooks/useChatStream";
+
 import useConversation from "../hooks/useConversation";
 
-import { getSessionId, clearConversationId } from "../utils/storage";
+import { clearConversationId } from "../utils/storage";
+
+import { useAuthContext } from "./AuthContext";
 
 const ChatContext = createContext(null);
 
 export const ChatProvider = ({ children }) => {
   const {
     messages,
+
     setMessages,
+
     sendMessage,
+
     stopStreaming,
+
     isStreaming,
+
     error,
   } = useChatStream();
 
   const {
     conversations,
+
     currentConversation,
+
     loadConversations,
+
     openConversation,
+
     restoreConversation,
+
     createNewChat,
+
     renameConversation,
+
     deleteConversation,
   } = useConversation();
 
-  const [sessionId, setSessionId] = useState(null);
+  const { user } = useAuthContext();
 
   const [activeConversationId, setActiveConversationId] = useState(null);
 
-  // ============================
-  // Initial Restore
-  // ============================
+  // ==========================
+  // Initial Load
+  // ==========================
 
   useEffect(() => {
-    const session = getSessionId();
-
-    setSessionId(session);
-
     const initialize = async () => {
       await loadConversations();
 
@@ -56,21 +67,66 @@ export const ChatProvider = ({ children }) => {
     initialize();
   }, []);
 
-  // ============================
-  // New Conversation Created
-  // ============================
+  // ==========================
+  // User Change Handler
+  // ==========================
 
   useEffect(() => {
-    const handleConversationCreated = async (event) => {
-      const conversationId = event.detail?.conversationId;
+    // user change hone par
+    // old chat memory clear
 
-      if (!conversationId) {
-        return;
-      }
+    clearConversationId();
 
-      setActiveConversationId(conversationId);
+    setActiveConversationId(null);
 
-      const conversation = await openConversation(conversationId);
+    setMessages([]);
+
+    loadConversations();
+  }, [user]);
+
+  // ==========================
+  // Guest Merge Refresh
+  // ==========================
+
+  useEffect(() => {
+    const refresh = () => {
+      clearConversationId();
+
+      setActiveConversationId(null);
+
+      setMessages([]);
+
+      loadConversations();
+    };
+
+    window.addEventListener(
+      "conversationRefresh",
+
+      refresh,
+    );
+
+    return () => {
+      window.removeEventListener(
+        "conversationRefresh",
+
+        refresh,
+      );
+    };
+  }, []);
+
+  // ==========================
+  // Conversation Created
+  // ==========================
+
+  useEffect(() => {
+    const handler = async (event) => {
+      const id = event.detail?.conversationId;
+
+      if (!id) return;
+
+      setActiveConversationId(id);
+
+      const conversation = await openConversation(id);
 
       if (conversation) {
         setMessages(conversation.messages || []);
@@ -79,39 +135,32 @@ export const ChatProvider = ({ children }) => {
       await loadConversations();
     };
 
-    window.addEventListener("conversationCreated", handleConversationCreated);
+    window.addEventListener(
+      "conversationCreated",
+
+      handler,
+    );
 
     return () => {
       window.removeEventListener(
         "conversationCreated",
-        handleConversationCreated,
+
+        handler,
       );
     };
   }, []);
 
-  // ============================
-  // Select Conversation
-  // ============================
-
   const selectConversation = async (id) => {
-    if (isStreaming) {
-      return;
-    }
+    if (isStreaming) return;
 
     const conversation = await openConversation(id);
 
-    if (!conversation) {
-      return;
+    if (conversation) {
+      setActiveConversationId(conversation._id);
+
+      setMessages(conversation.messages || []);
     }
-
-    setActiveConversationId(conversation._id);
-
-    setMessages(conversation.messages || []);
   };
-
-  // ============================
-  // New Chat
-  // ============================
 
   const startNewChat = () => {
     if (isStreaming) {
@@ -127,69 +176,39 @@ export const ChatProvider = ({ children }) => {
     setMessages([]);
   };
 
-  // ============================
-  // Rename
-  // ============================
-
   const renameChat = async (id, title) => {
-    const result = await renameConversation(id, title);
-
-    return result;
+    return await renameConversation(id, title);
   };
 
-  // ============================
-  // Delete
-  // ============================
-
   const deleteChat = async (id) => {
-    const deletingActive = activeConversationId === id;
-
     const success = await deleteConversation(id);
 
-    if (!success) {
-      return false;
-    }
-
-    if (deletingActive) {
+    if (success && activeConversationId === id) {
       clearConversationId();
 
       setActiveConversationId(null);
 
       setMessages([]);
-
-      // reload latest list
-
-      const updated = await loadConversations();
-
-      // open next available chat
-
-      if (updated.length > 0) {
-        const nextChat = updated[0];
-
-        const conversation = await openConversation(nextChat._id);
-
-        if (conversation) {
-          setActiveConversationId(conversation._id);
-
-          setMessages(conversation.messages || []);
-        }
-      }
     }
 
-    return true;
+    await loadConversations();
+
+    return success;
   };
 
   return (
     <ChatContext.Provider
       value={{
-        sessionId,
-
         messages,
+
         setMessages,
 
         sendMessage,
+
         stopStreaming,
+
         isStreaming,
+
         error,
 
         conversations,

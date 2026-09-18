@@ -4,59 +4,100 @@ const router = express.Router();
 
 const {
   sendMessage,
+
   streamMessage,
 
   getGuestConversations,
+
   getConversationById,
+
   getConversationHistory,
+
   getUserConversations,
 
   renameConversation,
+
   deleteConversation,
+
+  mergeGuestConversations,
 } = require("../controllers/chatController");
 
-// =======================================
+const authMiddleware = require("../middleware/authMiddleware");
+
+const optionalAuthMiddleware = require("../middleware/optionalAuthMiddleware");
+
 // Chat
-// =======================================
 
-router.post("/send", sendMessage);
+router.post("/send", optionalAuthMiddleware, sendMessage);
 
-router.post("/stream", streamMessage);
+router.post("/stream", optionalAuthMiddleware, streamMessage);
 
-// =======================================
-// Guest Conversation List
-// =======================================
+// Guest List
 
-router.get("/session/:sessionId", getGuestConversations);
+router.get(
+  "/session/:sessionId",
 
-// =======================================
+  getGuestConversations,
+);
+
 // Single Conversation
-// =======================================
 
-router.get("/conversation/:conversationId", getConversationById);
+router.get(
+  "/conversation/:conversationId",
 
-// =======================================
-// Rename Conversation
-// =======================================
+  optionalAuthMiddleware,
 
-router.patch("/conversation/:conversationId/title", renameConversation);
+  getConversationById,
+);
 
-// =======================================
-// Delete Conversation
-// =======================================
+// History
 
-router.delete("/conversation/:conversationId", deleteConversation);
+router.get(
+  "/history/:conversationId",
 
-// =======================================
-// Legacy / History
-// =======================================
+  optionalAuthMiddleware,
 
-router.get("/history/:conversationId", getConversationHistory);
+  getConversationHistory,
+);
 
-// =======================================
-// Authenticated User Conversations
-// =======================================
+// User Conversations
 
-router.get("/user/:userId", getUserConversations);
+router.get(
+  "/user",
+
+  authMiddleware,
+
+  getUserConversations,
+);
+
+// Merge Guest
+
+router.post(
+  "/merge",
+
+  authMiddleware,
+
+  mergeGuestConversations,
+);
+
+// Rename
+
+router.patch(
+  "/conversation/:conversationId/title",
+
+  optionalAuthMiddleware,
+
+  renameConversation,
+);
+
+// Delete
+
+router.delete(
+  "/conversation/:conversationId",
+
+  optionalAuthMiddleware,
+
+  deleteConversation,
+);
 
 module.exports = router;
