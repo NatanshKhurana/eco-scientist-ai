@@ -36,47 +36,29 @@ export default function Sidebar() {
 
   const [editingTitle, setEditingTitle] = useState("");
 
-  // Ref for currently opened 3-dot menu item
-  const menuContainerRef = useRef(null);
+  const menuRef = useRef(null);
 
-  // =====================================
-  // Close menu on outside click / Escape
-  // =====================================
+  // ================================
+  // Outside click close menu
+  // ================================
 
   useEffect(() => {
-    if (!menuConversationId) {
-      return;
-    }
-
-    const handleOutsideClick = (event) => {
-      if (
-        menuContainerRef.current &&
-        !menuContainerRef.current.contains(event.target)
-      ) {
+    const closeMenu = (event) => {
+      if (menuRef.current && !menuRef.current.contains(event.target)) {
         setMenuConversationId(null);
       }
     };
 
-    const handleEscape = (event) => {
-      if (event.key === "Escape") {
-        setMenuConversationId(null);
-      }
-    };
-
-    document.addEventListener("mousedown", handleOutsideClick);
-
-    document.addEventListener("keydown", handleEscape);
+    document.addEventListener("mousedown", closeMenu);
 
     return () => {
-      document.removeEventListener("mousedown", handleOutsideClick);
-
-      document.removeEventListener("keydown", handleEscape);
+      document.removeEventListener("mousedown", closeMenu);
     };
-  }, [menuConversationId]);
+  }, []);
 
-  // =====================================
-  // Start Rename
-  // =====================================
+  // ================================
+  // Rename
+  // ================================
 
   const startRename = (conversation) => {
     setMenuConversationId(null);
@@ -86,28 +68,12 @@ export default function Sidebar() {
     setEditingTitle(conversation.title || "");
   };
 
-  // =====================================
-  // Cancel Rename
-  // =====================================
-
-  const cancelRename = () => {
-    setEditingConversationId(null);
-
-    setEditingTitle("");
-  };
-
-  // =====================================
-  // Save Rename
-  // =====================================
-
-  const saveRename = async (conversationId) => {
+  const saveRename = async (id) => {
     const title = editingTitle.trim();
 
-    if (!title) {
-      return;
-    }
+    if (!title) return;
 
-    const success = await renameChat(conversationId, title);
+    const success = await renameChat(id, title);
 
     if (success) {
       setEditingConversationId(null);
@@ -116,37 +82,35 @@ export default function Sidebar() {
     }
   };
 
-  // =====================================
+  // ================================
   // Delete
-  // =====================================
+  // ================================
 
   const handleDelete = async (conversation) => {
     setMenuConversationId(null);
 
-    const confirmed = window.confirm(`Delete "${conversation.title}"?`);
+    const confirmDelete = window.confirm(`Delete "${conversation.title}"?`);
 
-    if (!confirmed) {
-      return;
-    }
+    if (!confirmDelete) return;
 
     await deleteChat(conversation._id);
   };
 
-  // =====================================
-  // Select Conversation
-  // =====================================
+  // ================================
+  // Open Chat
+  // ================================
 
-  const handleSelectConversation = async (conversationId) => {
+  const openChat = async (id) => {
     setMenuConversationId(null);
 
-    await selectConversation(conversationId);
+    await selectConversation(id);
   };
 
-  // =====================================
+  // ================================
   // New Analysis
-  // =====================================
+  // ================================
 
-  const handleNewAnalysis = () => {
+  const newAnalysis = () => {
     setMenuConversationId(null);
 
     startNewChat();
@@ -155,133 +119,117 @@ export default function Sidebar() {
   return (
     <aside
       className="
-      w-72
-      shrink-0
-      h-screen
-      border-r
-      border-gray-200
-      bg-white
-      flex
-      flex-col
-      "
+w-72
+h-screen
+shrink-0
+overflow-hidden
+border-r
+border-gray-200
+bg-white
+flex
+flex-col
+"
     >
-      {/* =====================================
-          Brand
-      ===================================== */}
+      {/* Brand */}
 
       <div
         className="
-        px-5
-        py-5
-        border-b
-        border-gray-100
-        flex
-        items-center
-        gap-3
-        "
+px-5
+py-5
+border-b
+border-gray-100
+flex
+items-center
+gap-3
+shrink-0
+"
       >
         <div
           className="
-          w-10
-          h-10
-          shrink-0
-          rounded-xl
-          bg-green-100
-          flex
-          items-center
-          justify-center
-          "
+w-10
+h-10
+rounded-xl
+bg-green-100
+flex
+items-center
+justify-center
+"
         >
-          <Leaf
-            size={21}
-            className="
-            text-green-700
-            "
-          />
+          <Leaf size={22} className="text-green-700" />
         </div>
 
-        <div
-          className="
-          min-w-0
-          "
-        >
+        <div className="min-w-0">
           <h1
             className="
-            font-semibold
-            text-[15px]
-            text-gray-900
-            truncate
-            "
+font-semibold
+text-gray-900
+text-[15px]
+"
           >
             Eco Scientist
           </h1>
 
           <p
             className="
-            text-[11px]
-            text-gray-500
-            "
+text-xs
+text-gray-500
+"
           >
             AI Research Assistant
           </p>
         </div>
       </div>
 
-      {/* =====================================
-          New Analysis
-      ===================================== */}
+      {/* New Analysis */}
 
       <div
         className="
-        p-4
-        "
+p-4
+shrink-0
+"
       >
         <button
-          type="button"
-          onClick={handleNewAnalysis}
+          onClick={newAnalysis}
           className="
-          w-full
-          h-11
-          rounded-xl
-          bg-green-600
-          hover:bg-green-700
-          text-white
-          text-sm
-          font-medium
-          flex
-          items-center
-          justify-center
-          gap-2
-          transition-colors
-          "
+w-full
+h-11
+rounded-xl
+bg-green-600
+hover:bg-green-700
+text-white
+font-medium
+flex
+items-center
+justify-center
+gap-2
+transition
+"
         >
           <Plus size={18} />
           New Analysis
         </button>
       </div>
 
-      {/* =====================================
-          Conversation History
-      ===================================== */}
+      {/* History Scroll Only */}
 
       <div
         className="
-        flex-1
-        min-h-0
-        overflow-y-auto
-        px-3
-        pb-4
-        "
+flex-1
+min-h-0
+overflow-y-auto
+px-3
+pb-4
+"
       >
         <p
           className="
-          px-2
-          mb-2
-          text-[11px]
-          uppercase
-          tracking-wide
-          text-gray-400
-          "
+px-2
+mb-2
+text-[11px]
+uppercase
+tracking-wide
+text-gray-400
+"
         >
           Recent
         </p>
@@ -289,281 +237,197 @@ export default function Sidebar() {
         {conversations.length === 0 ? (
           <p
             className="
-              px-2
-              py-3
-              text-sm
-              text-gray-400
-              "
+px-2
+text-sm
+text-gray-400
+"
           >
             No conversations yet
           </p>
         ) : (
           conversations.map((conversation) => {
-            const isActive = activeConversationId === conversation._id;
+            const active = activeConversationId === conversation._id;
 
-            const isEditing = editingConversationId === conversation._id;
+            const editing = editingConversationId === conversation._id;
 
-            const menuOpen = menuConversationId === conversation._id;
+            const menu = menuConversationId === conversation._id;
 
             return (
               <div
                 key={conversation._id}
-                ref={menuOpen ? menuContainerRef : null}
+                ref={menu ? menuRef : null}
                 className="
-                    relative
-                    mb-1
-                    group
-                    "
+relative
+mb-1
+group
+"
               >
-                {isEditing ? (
-                  // =================================
-                  // Rename Mode
-                  // =================================
-
+                {editing ? (
                   <div
                     className="
-                          flex
-                          items-center
-                          gap-1
-                          rounded-xl
-                          bg-green-50
-                          px-2
-                          py-2
-                          "
+flex
+gap-2
+bg-green-50
+rounded-xl
+p-2
+"
                   >
                     <input
                       autoFocus
                       value={editingTitle}
-                      onChange={(event) => setEditingTitle(event.target.value)}
-                      onKeyDown={(event) => {
-                        if (event.key === "Enter") {
-                          saveRename(conversation._id);
-                        }
+                      onChange={(e) => setEditingTitle(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") saveRename(conversation._id);
 
-                        if (event.key === "Escape") {
-                          cancelRename();
+                        if (e.key === "Escape") {
+                          setEditingConversationId(null);
                         }
                       }}
                       className="
-                            min-w-0
-                            flex-1
-                            h-8
-                            px-2
-                            rounded-lg
-                            border
-                            border-green-200
-                            bg-white
-                            text-sm
-                            outline-none
-                            focus:ring-2
-                            focus:ring-green-100
-                            "
+flex-1
+h-8
+rounded-lg
+border
+px-2
+outline-none
+"
                     />
 
-                    <button
-                      type="button"
-                      onClick={() => saveRename(conversation._id)}
-                      className="
-                            w-8
-                            h-8
-                            rounded-lg
-                            flex
-                            items-center
-                            justify-center
-                            text-green-700
-                            hover:bg-green-100
-                            transition
-                            "
-                    >
+                    <button onClick={() => saveRename(conversation._id)}>
                       <Check size={16} />
                     </button>
 
-                    <button
-                      type="button"
-                      onClick={cancelRename}
-                      className="
-                            w-8
-                            h-8
-                            rounded-lg
-                            flex
-                            items-center
-                            justify-center
-                            text-gray-500
-                            hover:bg-gray-100
-                            transition
-                            "
-                    >
+                    <button onClick={() => setEditingConversationId(null)}>
                       <X size={16} />
                     </button>
                   </div>
                 ) : (
-                  // =================================
-                  // Normal Conversation Item
-                  // =================================
-
                   <div
                     className={`
-                          flex
-                          items-center
-                          rounded-xl
-                          transition-colors
+flex
+items-center
+rounded-xl
 
-                          ${isActive ? "bg-green-50" : "hover:bg-gray-50"}
-                          `}
+${active ? "bg-green-50" : "hover:bg-gray-50"}
+
+`}
                   >
                     <button
-                      type="button"
                       disabled={isStreaming}
-                      onClick={() => handleSelectConversation(conversation._id)}
+                      onClick={() => openChat(conversation._id)}
                       className="
-                            min-w-0
-                            flex-1
-                            flex
-                            items-start
-                            gap-2.5
-                            px-3
-                            py-2.5
-                            text-left
-                            disabled:cursor-not-allowed
-                            "
+flex-1
+flex
+items-start
+gap-3
+px-3
+py-3
+text-left
+min-w-0
+"
                     >
                       <MessageSquare
                         size={16}
-                        className={`
-                              mt-0.5
-                              shrink-0
-
-                              ${isActive ? "text-green-700" : "text-gray-400"}
-                              `}
+                        className="
+text-gray-400
+mt-1
+shrink-0
+"
                       />
 
-                      <div
-                        className="
-                              min-w-0
-                              flex-1
-                              "
-                      >
+                      <div className="min-w-0">
                         <p
-                          className={`
-                                truncate
-                                text-sm
-
-                                ${
-                                  isActive
-                                    ? "font-medium text-gray-900"
-                                    : "text-gray-700"
-                                }
-                                `}
+                          className="
+text-sm
+truncate
+text-gray-700
+font-medium
+"
                         >
                           {conversation.title || "New Conversation"}
                         </p>
 
                         <p
                           className="
-                                mt-0.5
-                                text-[11px]
-                                text-gray-400
-                                "
+text-[11px]
+text-gray-400
+"
                         >
                           {new Date(
                             conversation.lastActivityAt ||
-                              conversation.updatedAt ||
                               conversation.createdAt,
-                          ).toLocaleDateString(undefined, {
-                            day: "2-digit",
-
-                            month: "short",
-                          })}
+                          ).toLocaleDateString()}
                         </p>
                       </div>
                     </button>
 
-                    {/* Three dots */}
-
                     <button
-                      type="button"
-                      aria-label="
-                            Conversation options
-                            "
-                      onClick={(event) => {
-                        event.stopPropagation();
+                      onClick={(e) => {
+                        e.stopPropagation();
 
-                        setMenuConversationId(
-                          menuOpen ? null : conversation._id,
-                        );
+                        setMenuConversationId(menu ? null : conversation._id);
                       }}
                       className={`
-                            mr-1
-                            w-8
-                            h-8
-                            rounded-lg
-                            items-center
-                            justify-center
-                            text-gray-500
-                            hover:bg-gray-200
-                            transition
+mr-2
+w-8
+h-8
+rounded-lg
+items-center
+justify-center
 
-                            ${menuOpen ? "flex" : "hidden group-hover:flex"}
-                            `}
+${menu ? "flex" : "hidden group-hover:flex"}
+
+hover:bg-gray-200
+`}
                     >
                       <MoreHorizontal size={17} />
                     </button>
 
-                    {/* Dropdown */}
-
-                    {menuOpen && (
+                    {menu && (
                       <div
                         className="
-                                absolute
-                                right-2
-                                top-10
-                                z-30
-                                w-36
-                                rounded-xl
-                                border
-                                border-gray-200
-                                bg-white
-                                p-1
-                                shadow-lg
-                                "
+absolute
+right-2
+top-11
+z-50
+w-36
+bg-white
+border
+rounded-xl
+shadow-lg
+p-1
+"
                       >
                         <button
-                          type="button"
                           onClick={() => startRename(conversation)}
                           className="
-                                  w-full
-                                  flex
-                                  items-center
-                                  gap-2
-                                  rounded-lg
-                                  px-3
-                                  py-2
-                                  text-sm
-                                  text-gray-700
-                                  hover:bg-gray-50
-                                  transition
-                                  "
+w-full
+flex
+gap-2
+px-3
+py-2
+text-sm
+hover:bg-gray-50
+rounded-lg
+"
                         >
                           <Pencil size={15} />
                           Rename
                         </button>
 
                         <button
-                          type="button"
                           onClick={() => handleDelete(conversation)}
                           className="
-                                  w-full
-                                  flex
-                                  items-center
-                                  gap-2
-                                  rounded-lg
-                                  px-3
-                                  py-2
-                                  text-sm
-                                  text-red-600
-                                  hover:bg-red-50
-                                  transition
-                                  "
+w-full
+flex
+gap-2
+px-3
+py-2
+text-sm
+text-red-600
+hover:bg-red-50
+rounded-lg
+"
                         >
                           <Trash2 size={15} />
                           Delete
