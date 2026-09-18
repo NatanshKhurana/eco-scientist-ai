@@ -1,5 +1,5 @@
 import { StrictMode } from "react";
-
+import { AuthProvider } from "./context/AuthContext.jsx";
 import { createRoot } from "react-dom/client";
 
 import "./index.css";
@@ -10,8 +10,10 @@ import { ChatProvider } from "./context/ChatContext.jsx";
 
 createRoot(document.getElementById("root")).render(
   <StrictMode>
-    <ChatProvider>
-      <App />
-    </ChatProvider>
+    <AuthProvider>
+      <ChatProvider>
+        <App />
+      </ChatProvider>
+    </AuthProvider>
   </StrictMode>,
 );

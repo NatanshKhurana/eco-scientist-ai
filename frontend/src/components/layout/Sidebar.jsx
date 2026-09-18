@@ -9,9 +9,16 @@ import {
   Trash2,
   Check,
   X,
+  LogIn,
+  UserPlus,
+  LogOut,
 } from "lucide-react";
 
+import { Link } from "react-router-dom";
+
 import { useChat } from "../../context/ChatContext";
+
+import { useAuthContext } from "../../context/AuthContext";
 
 export default function Sidebar() {
   const {
@@ -30,6 +37,12 @@ export default function Sidebar() {
     isStreaming,
   } = useChat();
 
+  const {
+    user,
+
+    logout,
+  } = useAuthContext();
+
   const [menuConversationId, setMenuConversationId] = useState(null);
 
   const [editingConversationId, setEditingConversationId] = useState(null);
@@ -37,10 +50,6 @@ export default function Sidebar() {
   const [editingTitle, setEditingTitle] = useState("");
 
   const menuRef = useRef(null);
-
-  // ================================
-  // Outside click close menu
-  // ================================
 
   useEffect(() => {
     const closeMenu = (event) => {
@@ -55,10 +64,6 @@ export default function Sidebar() {
       document.removeEventListener("mousedown", closeMenu);
     };
   }, []);
-
-  // ================================
-  // Rename
-  // ================================
 
   const startRename = (conversation) => {
     setMenuConversationId(null);
@@ -82,10 +87,6 @@ export default function Sidebar() {
     }
   };
 
-  // ================================
-  // Delete
-  // ================================
-
   const handleDelete = async (conversation) => {
     setMenuConversationId(null);
 
@@ -96,350 +97,281 @@ export default function Sidebar() {
     await deleteChat(conversation._id);
   };
 
-  // ================================
-  // Open Chat
-  // ================================
-
   const openChat = async (id) => {
     setMenuConversationId(null);
 
     await selectConversation(id);
   };
 
-  // ================================
-  // New Analysis
-  // ================================
-
-  const newAnalysis = () => {
-    setMenuConversationId(null);
-
-    startNewChat();
-  };
-
   return (
     <aside
       className="
-w-72
-h-screen
-shrink-0
-overflow-hidden
-border-r
-border-gray-200
-bg-white
-flex
-flex-col
-"
+      w-72
+      h-screen
+      shrink-0
+      overflow-hidden
+      border-r
+      border-gray-200
+      bg-white
+      flex
+      flex-col
+      "
     >
       {/* Brand */}
 
       <div
         className="
-px-5
-py-5
-border-b
-border-gray-100
-flex
-items-center
-gap-3
-shrink-0
-"
+        px-5
+        py-5
+        border-b
+        border-gray-100
+        flex
+        items-center
+        gap-3
+        "
       >
         <div
           className="
-w-10
-h-10
-rounded-xl
-bg-green-100
-flex
-items-center
-justify-center
-"
+          w-10
+          h-10
+          rounded-xl
+          bg-green-100
+          flex
+          items-center
+          justify-center
+          "
         >
           <Leaf size={22} className="text-green-700" />
         </div>
 
-        <div className="min-w-0">
-          <h1
-            className="
-font-semibold
-text-gray-900
-text-[15px]
-"
-          >
-            Eco Scientist
-          </h1>
+        <div>
+          <h1 className="font-semibold text-gray-900">Eco Scientist</h1>
 
-          <p
-            className="
-text-xs
-text-gray-500
-"
-          >
-            AI Research Assistant
-          </p>
+          <p className="text-xs text-gray-500">AI Research Assistant</p>
         </div>
       </div>
 
-      {/* New Analysis */}
+      {/* Auth Section */}
 
-      <div
-        className="
-p-4
-shrink-0
-"
-      >
+      <div className="p-4 border-b">
+        {user ? (
+          <div className="space-y-3">
+            <div>
+              <p className="font-medium text-gray-900">{user.name}</p>
+
+              <p className="text-xs text-gray-500">{user.email}</p>
+            </div>
+
+            <button
+              onClick={logout}
+              className="
+              w-full
+              flex
+              items-center
+              justify-center
+              gap-2
+              h-10
+              rounded-xl
+              border
+              text-red-600
+              hover:bg-red-50
+              "
+            >
+              <LogOut size={16} />
+              Logout
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            <Link
+              to="/login"
+              className="
+              w-full
+              h-10
+              rounded-xl
+              bg-green-600
+              text-white
+              flex
+              items-center
+              justify-center
+              gap-2
+              "
+            >
+              <LogIn size={16} />
+              Login
+            </Link>
+
+            <Link
+              to="/signup"
+              className="
+              w-full
+              h-10
+              rounded-xl
+              border
+              flex
+              items-center
+              justify-center
+              gap-2
+              text-gray-700
+              "
+            >
+              <UserPlus size={16} />
+              Signup
+            </Link>
+          </div>
+        )}
+      </div>
+
+      {/* New Chat */}
+
+      <div className="p-4">
         <button
-          onClick={newAnalysis}
+          onClick={startNewChat}
           className="
-w-full
-h-11
-rounded-xl
-bg-green-600
-hover:bg-green-700
-text-white
-font-medium
-flex
-items-center
-justify-center
-gap-2
-transition
-"
+          w-full
+          h-11
+          rounded-xl
+          bg-green-600
+          text-white
+          flex
+          items-center
+          justify-center
+          gap-2
+          "
         >
           <Plus size={18} />
           New Analysis
         </button>
       </div>
 
-      {/* History Scroll Only */}
+      {/* History */}
 
       <div
         className="
-flex-1
-min-h-0
-overflow-y-auto
-px-3
-pb-4
-"
+        flex-1
+        overflow-y-auto
+        px-3
+        "
       >
-        <p
-          className="
-px-2
-mb-2
-text-[11px]
-uppercase
-tracking-wide
-text-gray-400
-"
-        >
-          Recent
-        </p>
+        <p className="text-xs text-gray-400 mb-2">Recent</p>
 
-        {conversations.length === 0 ? (
-          <p
-            className="
-px-2
-text-sm
-text-gray-400
-"
-          >
-            No conversations yet
-          </p>
-        ) : (
-          conversations.map((conversation) => {
-            const active = activeConversationId === conversation._id;
+        {conversations.map((conversation) => {
+          const active = activeConversationId === conversation._id;
 
-            const editing = editingConversationId === conversation._id;
+          const editing = editingConversationId === conversation._id;
 
-            const menu = menuConversationId === conversation._id;
+          const menu = menuConversationId === conversation._id;
 
-            return (
-              <div
-                key={conversation._id}
-                ref={menu ? menuRef : null}
-                className="
-relative
-mb-1
-group
-"
-              >
-                {editing ? (
-                  <div
+          return (
+            <div
+              key={conversation._id}
+              ref={menu ? menuRef : null}
+              className="relative mb-1"
+            >
+              {editing ? (
+                <div className="flex gap-2">
+                  <input
+                    value={editingTitle}
+                    onChange={(e) => setEditingTitle(e.target.value)}
                     className="
-flex
-gap-2
-bg-green-50
-rounded-xl
-p-2
-"
+                      border
+                      rounded
+                      px-2
+                      w-full
+                      "
+                  />
+
+                  <button onClick={() => saveRename(conversation._id)}>
+                    <Check size={16} />
+                  </button>
+
+                  <button onClick={() => setEditingConversationId(null)}>
+                    <X size={16} />
+                  </button>
+                </div>
+              ) : (
+                <div
+                  className={`
+                  flex
+                  items-center
+                  rounded-xl
+                  ${active ? "bg-green-50" : "hover:bg-gray-50"}
+                  `}
+                >
+                  <button
+                    disabled={isStreaming}
+                    onClick={() => openChat(conversation._id)}
+                    className="
+                    flex-1
+                    flex
+                    gap-3
+                    px-3
+                    py-3
+                    text-left
+                    "
                   >
-                    <input
-                      autoFocus
-                      value={editingTitle}
-                      onChange={(e) => setEditingTitle(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") saveRename(conversation._id);
+                    <MessageSquare size={16} />
 
-                        if (e.key === "Escape") {
-                          setEditingConversationId(null);
-                        }
-                      }}
-                      className="
-flex-1
-h-8
-rounded-lg
-border
-px-2
-outline-none
-"
-                    />
+                    <span className="truncate">
+                      {conversation.title || "New Conversation"}
+                    </span>
+                  </button>
 
-                    <button onClick={() => saveRename(conversation._id)}>
-                      <Check size={16} />
-                    </button>
-
-                    <button onClick={() => setEditingConversationId(null)}>
-                      <X size={16} />
-                    </button>
-                  </div>
-                ) : (
-                  <div
-                    className={`
-flex
-items-center
-rounded-xl
-
-${active ? "bg-green-50" : "hover:bg-gray-50"}
-
-`}
+                  <button
+                    onClick={() =>
+                      setMenuConversationId(menu ? null : conversation._id)
+                    }
                   >
-                    <button
-                      disabled={isStreaming}
-                      onClick={() => openChat(conversation._id)}
+                    <MoreHorizontal size={17} />
+                  </button>
+
+                  {menu && (
+                    <div
                       className="
-flex-1
-flex
-items-start
-gap-3
-px-3
-py-3
-text-left
-min-w-0
-"
+                        absolute
+                        right-2
+                        top-12
+                        bg-white
+                        border
+                        rounded-xl
+                        shadow
+                        p-2
+                        z-50
+                        "
                     >
-                      <MessageSquare
-                        size={16}
+                      <button
+                        onClick={() => startRename(conversation)}
                         className="
-text-gray-400
-mt-1
-shrink-0
-"
-                      />
-
-                      <div className="min-w-0">
-                        <p
-                          className="
-text-sm
-truncate
-text-gray-700
-font-medium
-"
-                        >
-                          {conversation.title || "New Conversation"}
-                        </p>
-
-                        <p
-                          className="
-text-[11px]
-text-gray-400
-"
-                        >
-                          {new Date(
-                            conversation.lastActivityAt ||
-                              conversation.createdAt,
-                          ).toLocaleDateString()}
-                        </p>
-                      </div>
-                    </button>
-
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-
-                        setMenuConversationId(menu ? null : conversation._id);
-                      }}
-                      className={`
-mr-2
-w-8
-h-8
-rounded-lg
-items-center
-justify-center
-
-${menu ? "flex" : "hidden group-hover:flex"}
-
-hover:bg-gray-200
-`}
-                    >
-                      <MoreHorizontal size={17} />
-                    </button>
-
-                    {menu && (
-                      <div
-                        className="
-absolute
-right-2
-top-11
-z-50
-w-36
-bg-white
-border
-rounded-xl
-shadow-lg
-p-1
-"
+                          flex
+                          gap-2
+                          px-3
+                          py-2
+                          "
                       >
-                        <button
-                          onClick={() => startRename(conversation)}
-                          className="
-w-full
-flex
-gap-2
-px-3
-py-2
-text-sm
-hover:bg-gray-50
-rounded-lg
-"
-                        >
-                          <Pencil size={15} />
-                          Rename
-                        </button>
+                        <Pencil size={15} />
+                        Rename
+                      </button>
 
-                        <button
-                          onClick={() => handleDelete(conversation)}
-                          className="
-w-full
-flex
-gap-2
-px-3
-py-2
-text-sm
-text-red-600
-hover:bg-red-50
-rounded-lg
-"
-                        >
-                          <Trash2 size={15} />
-                          Delete
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            );
-          })
-        )}
+                      <button
+                        onClick={() => handleDelete(conversation)}
+                        className="
+                          flex
+                          gap-2
+                          px-3
+                          py-2
+                          text-red-600
+                          "
+                      >
+                        <Trash2 size={15} />
+                        Delete
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
     </aside>
   );

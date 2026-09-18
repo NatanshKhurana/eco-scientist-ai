@@ -266,7 +266,11 @@ exports.sendMessage = async (req, res) => {
   const requestStartedAt = Date.now();
 
   try {
-    const { userId, sessionId, conversationId, message } = req.body;
+    const { conversationId, message } = req.body;
+
+    const userId = req.user?._id || null;
+
+    const sessionId = req.user ? null : req.body.sessionId;
 
     if (!message || !message.trim()) {
       return res.status(400).json({
@@ -442,7 +446,11 @@ exports.sendMessage = async (req, res) => {
 
 exports.streamMessage = async (req, res) => {
   try {
-    const { userId, sessionId, conversationId, message } = req.body;
+    const { conversationId, message } = req.body;
+
+    const userId = req.user?._id || null;
+
+    const sessionId = req.user ? null : req.body.sessionId;
 
     if (!message || !message.trim()) {
       return res.status(400).json({
@@ -827,6 +835,10 @@ exports.getGuestConversations = async (req, res) => {
 
     const conversations = await Conversation.find({
       sessionId: sessionId.trim(),
+
+      // only guest conversations
+      // after login these will move to userId
+      userId: null,
     })
       .sort({
         lastActivityAt: -1,
@@ -854,14 +866,30 @@ exports.getConversationById = async (req, res) => {
   try {
     const { conversationId } = req.params;
 
-    const { userId, sessionId } = req.query;
-
     validateConversationId(conversationId);
 
-    const owner = getOwnerFilter({
-      userId,
-      sessionId,
-    });
+    let owner = {};
+
+    // Logged user
+
+    if (req.user) {
+      owner = {
+        userId: req.user._id,
+      };
+    }
+
+    // Guest user
+    else if (req.query.sessionId) {
+      owner = {
+        sessionId: req.query.sessionId,
+      };
+    } else {
+      return res.status(401).json({
+        success: false,
+
+        error: "Authentication required",
+      });
+    }
 
     const conversation = await Conversation.findOne({
       _id: conversationId,
@@ -1060,7 +1088,7 @@ exports.getConversationHistory = async (req, res) => {
 
 exports.getUserConversations = async (req, res) => {
   try {
-    const { userId } = req.params;
+    const userId = req.user._id;
 
     if (!mongoose.isValidObjectId(userId)) {
       return res.status(400).json({
@@ -1088,5 +1116,65 @@ exports.getUserConversations = async (req, res) => {
     console.error("Get User Conversations Error:", error);
 
     return sendControllerError(res, error);
+  }
+};
+
+// ==================================================
+// MERGE GUEST CONVERSATIONS
+// ==================================================
+
+exports.mergeGuestConversations = async (req, res) => {
+  try {
+    const { sessionId } = req.body;
+
+    if (!sessionId || !sessionId.trim()) {
+      return res.status(400).json({
+        success: false,
+
+        error: "sessionId required",
+      });
+    }
+
+    const result = await Conversation.updateMany(
+      {
+        sessionId: sessionId.trim(),
+
+        $or: [
+          {
+            userId: null,
+          },
+
+          {
+            userId: {
+              $exists: false,
+            },
+          },
+        ],
+      },
+
+      {
+        $set: {
+          userId: req.user._id,
+        },
+
+        $unset: {
+          sessionId: "",
+        },
+      },
+    );
+
+    return res.json({
+      success: true,
+
+      mergedCount: result.modifiedCount,
+    });
+  } catch (error) {
+    console.error("Merge Guest Conversation Error:", error);
+
+    return res.status(500).json({
+      success: false,
+
+      error: error.message,
+    });
   }
 };

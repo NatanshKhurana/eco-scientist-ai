@@ -1,5 +1,9 @@
 const mongoose = require("mongoose");
 
+// ======================================
+// Message Schema
+// ======================================
+
 const messageSchema = new mongoose.Schema(
   {
     role: {
@@ -24,26 +28,26 @@ const messageSchema = new mongoose.Schema(
   },
 );
 
+// ======================================
+// Conversation Schema
+// ======================================
+
 const conversationSchema = new mongoose.Schema(
   {
-    // Auth user
-
     userId: {
       type: mongoose.Schema.Types.ObjectId,
 
       ref: "User",
 
-      required: false,
+      default: null,
 
       index: true,
     },
 
-    // Guest session
-
     sessionId: {
       type: String,
 
-      required: false,
+      default: null,
 
       index: true,
     },
@@ -60,17 +64,7 @@ const conversationSchema = new mongoose.Schema(
       default: "",
     },
 
-    messages: {
-      type: [messageSchema],
-
-      default: [],
-    },
-
-    titleGenerated: {
-      type: Boolean,
-
-      default: false,
-    },
+    messages: [messageSchema],
 
     lastActivityAt: {
       type: Date,
@@ -86,13 +80,23 @@ const conversationSchema = new mongoose.Schema(
   },
 );
 
-// Prevent empty owner
+// ======================================
+// Ownership Validation
+// ======================================
 
-conversationSchema.pre("validate", function () {
-  if (!this.userId && !this.sessionId) {
-    throw new Error("Conversation requires either userId or sessionId");
-  }
-});
+conversationSchema.pre(
+  "validate",
+
+  function () {
+    if (!this.userId && !this.sessionId) {
+      throw new Error("Conversation requires owner");
+    }
+  },
+);
+
+// ======================================
+// Indexes
+// ======================================
 
 conversationSchema.index({
   userId: 1,
@@ -106,4 +110,8 @@ conversationSchema.index({
   lastActivityAt: -1,
 });
 
-module.exports = mongoose.model("Conversation", conversationSchema);
+module.exports = mongoose.model(
+  "Conversation",
+
+  conversationSchema,
+);

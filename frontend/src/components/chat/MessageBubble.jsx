@@ -1,7 +1,11 @@
 import MarkdownRenderer from "./MarkdownRenderer";
 
 export default function MessageBubble({ message }) {
+  if (!message) return null;
+
   const isUser = message.role === "user";
+
+  const content = message.content || "";
 
   return (
     <div
@@ -18,8 +22,7 @@ export default function MessageBubble({ message }) {
         px-5
         py-4
         shadow-sm
-        break-words
-
+        wrap-break-words
         ${
           isUser
             ? `
@@ -33,31 +36,30 @@ export default function MessageBubble({ message }) {
           text-gray-800
           `
         }
-
         `}
       >
         {isUser ? (
           <p
             className="
-              whitespace-pre-wrap
-              leading-7
-              "
+            whitespace-pre-wrap
+            leading-7
+            "
           >
-            {message.content}
+            {content}
           </p>
         ) : (
-          <MarkdownRenderer content={message.content || ""} />
+          <MarkdownRenderer content={content} />
         )}
 
         {message.streaming && (
           <span
             className="
-              inline-block
-              ml-1
-              animate-pulse
-              text-green-600
-              font-bold
-              "
+            inline-block
+            ml-1
+            animate-pulse
+            text-green-600
+            font-bold
+            "
           >
             ▌
           </span>

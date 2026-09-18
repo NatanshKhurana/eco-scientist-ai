@@ -6,10 +6,16 @@ import {
   getConversationId,
   setConversationId,
   clearConversation,
-  getUserId,
+  getUser,
 } from "../utils/storage";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
+
+const api = axios.create({
+  baseURL: API_URL,
+
+  withCredentials: true,
+});
 
 export default function useConversation() {
   const [conversations, setConversations] = useState([]);
@@ -18,42 +24,22 @@ export default function useConversation() {
 
   const [loading, setLoading] = useState(false);
 
-  // =====================================
-  // Owner
-  // =====================================
-
-  const getOwner = () => {
-    const userId = getUserId();
-
-    if (userId) {
-      return {
-        userId,
-      };
-    }
-
-    return {
-      sessionId: getSessionId(),
-    };
+  const isLoggedIn = () => {
+    return Boolean(getUser());
   };
-
-  // =====================================
-  // Load Conversations
-  // =====================================
 
   const loadConversations = async () => {
     try {
       setLoading(true);
 
-      const owner = getOwner();
-
       let response;
 
-      if (owner.userId) {
-        response = await axios.get(`${API_URL}/api/chat/user/${owner.userId}`);
+      if (isLoggedIn()) {
+        response = await api.get("/api/chat/user");
       } else {
-        response = await axios.get(
-          `${API_URL}/api/chat/session/${owner.sessionId}`,
-        );
+        const sessionId = getSessionId();
+
+        response = await api.get(`/api/chat/session/${sessionId}`);
       }
 
       const list = response.data.conversations || [];
@@ -62,7 +48,12 @@ export default function useConversation() {
 
       return list;
     } catch (error) {
-      console.error("Load conversations error:", error);
+      console.error(
+        "Load conversations error:",
+        error.response?.data || error.message,
+      );
+
+      setConversations([]);
 
       return [];
     } finally {
@@ -70,29 +61,13 @@ export default function useConversation() {
     }
   };
 
-  // =====================================
-  // Open Conversation
-  // =====================================
-
-  const openConversation = async (conversationId) => {
+  const openConversation = async (id) => {
     try {
       setLoading(true);
 
-      const owner = getOwner();
-
-      const response = await axios.get(
-        `${API_URL}/api/chat/conversation/${conversationId}`,
-
-        {
-          params: owner,
-        },
-      );
+      const response = await api.get(`/api/chat/conversation/${id}`);
 
       const conversation = response.data.conversation;
-
-      if (!conversation) {
-        return null;
-      }
 
       setCurrentConversation(conversation);
 
@@ -100,17 +75,20 @@ export default function useConversation() {
 
       return conversation;
     } catch (error) {
-      console.error("Open conversation error:", error);
+      console.error(
+        "Open conversation error:",
+        error.response?.data || error.message,
+      );
+
+      clearConversation();
+
+      setCurrentConversation(null);
 
       return null;
     } finally {
       setLoading(false);
     }
   };
-
-  // =====================================
-  // Restore Current Conversation
-  // =====================================
 
   const restoreConversation = async () => {
     const conversationId = getConversationId();
@@ -128,45 +106,27 @@ export default function useConversation() {
     return conversation;
   };
 
-  // =====================================
-  // Create New Chat
-  // =====================================
-
   const createNewChat = () => {
     clearConversation();
 
     setCurrentConversation(null);
   };
 
-  // =====================================
-  // Rename Conversation
-  // =====================================
-
-  const renameConversation = async (conversationId, title) => {
-    const cleanTitle = title?.trim();
-
-    if (!cleanTitle) {
-      return false;
-    }
-
+  const renameConversation = async (id, title) => {
     try {
-      const owner = getOwner();
-
-      const response = await axios.patch(
-        `${API_URL}/api/chat/conversation/${conversationId}/title`,
+      const response = await api.patch(
+        `/api/chat/conversation/${id}/title`,
 
         {
-          ...owner,
-
-          title: cleanTitle,
+          title: title.trim(),
         },
       );
 
       const updated = response.data.conversation;
 
-      setConversations((previous) =>
-        previous.map((item) =>
-          item._id === conversationId
+      setConversations((prev) =>
+        prev.map((item) =>
+          item._id === id
             ? {
                 ...item,
                 ...updated,
@@ -175,47 +135,21 @@ export default function useConversation() {
         ),
       );
 
-      setCurrentConversation((previous) => {
-        if (!previous || previous._id !== conversationId) {
-          return previous;
-        }
-
-        return {
-          ...previous,
-
-          ...updated,
-        };
-      });
-
       return true;
     } catch (error) {
-      console.error("Rename conversation error:", error);
+      console.error("Rename error:", error.response?.data || error.message);
 
       return false;
     }
   };
 
-  // =====================================
-  // Delete Conversation
-  // =====================================
-
-  const deleteConversation = async (conversationId) => {
+  const deleteConversation = async (id) => {
     try {
-      const owner = getOwner();
+      await api.delete(`/api/chat/conversation/${id}`);
 
-      await axios.delete(
-        `${API_URL}/api/chat/conversation/${conversationId}`,
+      setConversations((prev) => prev.filter((item) => item._id !== id));
 
-        {
-          data: owner,
-        },
-      );
-
-      setConversations((previous) =>
-        previous.filter((item) => item._id !== conversationId),
-      );
-
-      if (currentConversation?._id === conversationId) {
+      if (currentConversation?._id === id) {
         clearConversation();
 
         setCurrentConversation(null);
@@ -223,7 +157,7 @@ export default function useConversation() {
 
       return true;
     } catch (error) {
-      console.error("Delete conversation error:", error);
+      console.error("Delete error:", error.response?.data || error.message);
 
       return false;
     }
