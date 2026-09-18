@@ -4,27 +4,58 @@ const router = express.Router();
 
 const {
   sendMessage,
-
   streamMessage,
 
+  getGuestConversations,
+  getConversationById,
   getConversationHistory,
-
   getUserConversations,
+
+  renameConversation,
+  deleteConversation,
 } = require("../controllers/chatController");
 
-// Normal Chat
+// =======================================
+// Chat
+// =======================================
 
 router.post("/send", sendMessage);
 
-// Streaming Chat
-
 router.post("/stream", streamMessage);
 
-// Conversation History
+// =======================================
+// Guest Conversation List
+// =======================================
+
+router.get("/session/:sessionId", getGuestConversations);
+
+// =======================================
+// Single Conversation
+// =======================================
+
+router.get("/conversation/:conversationId", getConversationById);
+
+// =======================================
+// Rename Conversation
+// =======================================
+
+router.patch("/conversation/:conversationId/title", renameConversation);
+
+// =======================================
+// Delete Conversation
+// =======================================
+
+router.delete("/conversation/:conversationId", deleteConversation);
+
+// =======================================
+// Legacy / History
+// =======================================
 
 router.get("/history/:conversationId", getConversationHistory);
 
-// User Conversations
+// =======================================
+// Authenticated User Conversations
+// =======================================
 
 router.get("/user/:userId", getUserConversations);
 
