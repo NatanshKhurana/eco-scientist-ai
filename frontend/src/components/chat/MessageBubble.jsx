@@ -8,7 +8,6 @@ export default function MessageBubble({ message }) {
       className={`
       flex
       mb-5
-
       ${isUser ? "justify-end" : "justify-start"}
       `}
     >
@@ -19,6 +18,7 @@ export default function MessageBubble({ message }) {
         px-5
         py-4
         shadow-sm
+        break-words
 
         ${
           isUser
@@ -46,16 +46,17 @@ export default function MessageBubble({ message }) {
             {message.content}
           </p>
         ) : (
-          <MarkdownRenderer content={message.content} />
+          <MarkdownRenderer content={message.content || ""} />
         )}
 
         {message.streaming && (
           <span
             className="
               inline-block
-              ml-2
+              ml-1
               animate-pulse
               text-green-600
+              font-bold
               "
           >
             ▌

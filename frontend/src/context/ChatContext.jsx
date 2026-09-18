@@ -1,14 +1,9 @@
 import { createContext, useContext, useEffect, useState } from "react";
 
 import useChatStream from "../hooks/useChatStream";
-
 import useConversation from "../hooks/useConversation";
 
-import {
-  getSessionId,
-  getConversationId,
-  clearConversationId,
-} from "../utils/storage";
+import { getSessionId, clearConversationId } from "../utils/storage";
 
 const ChatContext = createContext(null);
 
@@ -16,43 +11,30 @@ export const ChatProvider = ({ children }) => {
   const {
     messages,
     setMessages,
-
     sendMessage,
-
     stopStreaming,
-
     isStreaming,
-
     error,
   } = useChatStream();
 
   const {
     conversations,
-
     currentConversation,
-
     loadConversations,
-
     openConversation,
-
     restoreConversation,
-
     createNewChat,
-
     renameConversation,
-
     deleteConversation,
   } = useConversation();
 
   const [sessionId, setSessionId] = useState(null);
 
-  const [activeConversationId, setActiveConversationId] = useState(() =>
-    getConversationId(),
-  );
+  const [activeConversationId, setActiveConversationId] = useState(null);
 
-  // =====================================
+  // ============================
   // Initial Restore
-  // =====================================
+  // ============================
 
   useEffect(() => {
     const session = getSessionId();
@@ -74,41 +56,49 @@ export const ChatProvider = ({ children }) => {
     initialize();
   }, []);
 
-  // =====================================
-  // Stream Completion
-  // =====================================
+  // ============================
+  // New Conversation Created
+  // ============================
 
   useEffect(() => {
-    const handleConversationUpdated = async (event) => {
+    const handleConversationCreated = async (event) => {
       const conversationId = event.detail?.conversationId;
 
-      if (conversationId) {
-        setActiveConversationId(conversationId);
+      if (!conversationId) {
+        return;
+      }
+
+      setActiveConversationId(conversationId);
+
+      const conversation = await openConversation(conversationId);
+
+      if (conversation) {
+        setMessages(conversation.messages || []);
       }
 
       await loadConversations();
     };
 
-    window.addEventListener("conversationCreated", handleConversationUpdated);
+    window.addEventListener("conversationCreated", handleConversationCreated);
 
     return () => {
       window.removeEventListener(
         "conversationCreated",
-        handleConversationUpdated,
+        handleConversationCreated,
       );
     };
   }, []);
 
-  // =====================================
+  // ============================
   // Select Conversation
-  // =====================================
+  // ============================
 
-  const selectConversation = async (conversationId) => {
+  const selectConversation = async (id) => {
     if (isStreaming) {
       return;
     }
 
-    const conversation = await openConversation(conversationId);
+    const conversation = await openConversation(id);
 
     if (!conversation) {
       return;
@@ -119,9 +109,9 @@ export const ChatProvider = ({ children }) => {
     setMessages(conversation.messages || []);
   };
 
-  // =====================================
-  // New Analysis
-  // =====================================
+  // ============================
+  // New Chat
+  // ============================
 
   const startNewChat = () => {
     if (isStreaming) {
@@ -137,62 +127,91 @@ export const ChatProvider = ({ children }) => {
     setMessages([]);
   };
 
-  // =====================================
+  // ============================
   // Rename
-  // =====================================
+  // ============================
 
-  const renameChat = async (conversationId, title) => {
-    return renameConversation(conversationId, title);
+  const renameChat = async (id, title) => {
+    const result = await renameConversation(id, title);
+
+    return result;
   };
 
-  // =====================================
+  // ============================
   // Delete
-  // =====================================
+  // ============================
 
-  const deleteChat = async (conversationId) => {
-    const wasActive = activeConversationId === conversationId;
+  const deleteChat = async (id) => {
+    const deletingActive = activeConversationId === id;
 
-    const success = await deleteConversation(conversationId);
+    const success = await deleteConversation(id);
 
-    if (success && wasActive) {
+    if (!success) {
+      return false;
+    }
+
+    if (deletingActive) {
       clearConversationId();
 
       setActiveConversationId(null);
 
       setMessages([]);
+
+      // reload latest list
+
+      const updated = await loadConversations();
+
+      // open next available chat
+
+      if (updated.length > 0) {
+        const nextChat = updated[0];
+
+        const conversation = await openConversation(nextChat._id);
+
+        if (conversation) {
+          setActiveConversationId(conversation._id);
+
+          setMessages(conversation.messages || []);
+        }
+      }
     }
 
-    return success;
+    return true;
   };
 
-  const value = {
-    sessionId,
+  return (
+    <ChatContext.Provider
+      value={{
+        sessionId,
 
-    messages,
-    setMessages,
+        messages,
+        setMessages,
 
-    sendMessage,
-    stopStreaming,
-    isStreaming,
-    error,
+        sendMessage,
+        stopStreaming,
+        isStreaming,
+        error,
 
-    conversations,
-    currentConversation,
+        conversations,
 
-    activeConversationId,
+        currentConversation,
 
-    selectConversation,
+        activeConversationId,
 
-    startNewChat,
+        selectConversation,
 
-    renameChat,
+        startNewChat,
 
-    deleteChat,
+        renameChat,
 
-    loadConversations,
-  };
+        deleteChat,
 
-  return <ChatContext.Provider value={value}>{children}</ChatContext.Provider>;
+        loadConversations,
+      }}
+    >
+      {children}
+    </ChatContext.Provider>
+  );
 };
 
 export const useChat = () => {
