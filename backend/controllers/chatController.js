@@ -3,6 +3,16 @@ const axios = require("axios");
 
 const Conversation = require("../models/Conversation");
 
+const { generateAITitle } = require("../services/titleService");
+
+// ==================================================
+// Configuration
+// ==================================================
+
+const AI_REQUEST_TIMEOUT_MS = 60000;
+
+const TITLE_WAIT_AFTER_RESPONSE_MS = 1500;
+
 // ==================================================
 // Helpers
 // ==================================================
@@ -31,6 +41,10 @@ const createConversationTitle = (message) => {
   return title || "New Conversation";
 };
 
+// ==================================================
+// Build Conversation Memory
+// ==================================================
+
 const buildMemoryContext = (conversation) => {
   const recentMessages = conversation.messages.slice(-10);
 
@@ -39,15 +53,24 @@ const buildMemoryContext = (conversation) => {
 
     recentMessages: recentMessages.map((message) => ({
       role: message.role,
+
       content: message.content,
     })),
   };
 };
 
+// ==================================================
+// Resolve Conversation Owner
+// ==================================================
+
 const getOwnerFilter = ({ userId, sessionId }) => {
   if (userId) {
     if (!mongoose.isValidObjectId(userId)) {
-      throw new Error("Invalid userId");
+      const error = new Error("Invalid userId");
+
+      error.statusCode = 400;
+
+      throw error;
     }
 
     return {
@@ -61,8 +84,30 @@ const getOwnerFilter = ({ userId, sessionId }) => {
     };
   }
 
-  throw new Error("Either userId or sessionId is required");
+  const error = new Error("Either userId or sessionId is required");
+
+  error.statusCode = 400;
+
+  throw error;
 };
+
+// ==================================================
+// Validate Conversation ID
+// ==================================================
+
+const validateConversationId = (conversationId) => {
+  if (!mongoose.isValidObjectId(conversationId)) {
+    const error = new Error("Invalid conversationId");
+
+    error.statusCode = 400;
+
+    throw error;
+  }
+};
+
+// ==================================================
+// Create New Conversation
+// ==================================================
 
 const createNewConversation = async ({ userId, sessionId, message }) => {
   const owner = getOwnerFilter({
@@ -75,16 +120,20 @@ const createNewConversation = async ({ userId, sessionId, message }) => {
 
     title: createConversationTitle(message),
 
+    titleGenerated: false,
+
     messages: [],
 
     lastActivityAt: new Date(),
   });
 };
 
+// ==================================================
+// Find Owned Conversation
+// ==================================================
+
 const findOwnedConversation = async ({ conversationId, userId, sessionId }) => {
-  if (!conversationId || !mongoose.isValidObjectId(conversationId)) {
-    return null;
-  }
+  validateConversationId(conversationId);
 
   const owner = getOwnerFilter({
     userId,
@@ -93,7 +142,119 @@ const findOwnedConversation = async ({ conversationId, userId, sessionId }) => {
 
   return Conversation.findOne({
     _id: conversationId,
+
     ...owner,
+  });
+};
+
+// ==================================================
+// Start AI Title Generation
+// ==================================================
+
+const startTitleGeneration = (message) => {
+  return generateAITitle(message)
+    .then((title) => {
+      if (!title || !title.trim()) {
+        return null;
+      }
+
+      return title.trim();
+    })
+    .catch((error) => {
+      console.error("AI Title Generation Error:", error.message);
+
+      return null;
+    });
+};
+
+// ==================================================
+// Wait For Title Without Blocking Too Long
+// ==================================================
+
+const resolveTitleWithTimeout = async (titlePromise) => {
+  if (!titlePromise) {
+    return {
+      ready: false,
+      title: null,
+    };
+  }
+
+  return Promise.race([
+    titlePromise.then((title) => ({
+      ready: true,
+      title,
+    })),
+
+    new Promise((resolve) => {
+      setTimeout(() => {
+        resolve({
+          ready: false,
+          title: null,
+        });
+      }, TITLE_WAIT_AFTER_RESPONSE_MS);
+    }),
+  ]);
+};
+
+// ==================================================
+// Update Title Later If AI Was Slow
+// ==================================================
+
+const updateTitleInBackground = (conversationId, titlePromise) => {
+  if (!titlePromise) {
+    return;
+  }
+
+  titlePromise
+    .then(async (title) => {
+      if (!title || !title.trim()) {
+        return;
+      }
+
+      await Conversation.findOneAndUpdate(
+        {
+          _id: conversationId,
+
+          titleGenerated: {
+            $ne: true,
+          },
+        },
+
+        {
+          $set: {
+            title: title.trim(),
+
+            titleGenerated: true,
+          },
+        },
+      );
+    })
+    .catch((error) => {
+      console.error("Background Title Update Error:", error.message);
+    });
+};
+
+// ==================================================
+// Controller Error Response
+// ==================================================
+
+const sendControllerError = (
+  res,
+  error,
+  fallbackMessage = "Internal server error",
+) => {
+  const statusCode = error.statusCode || 500;
+
+  return res.status(statusCode).json({
+    success: false,
+
+    error: statusCode === 500 ? fallbackMessage : error.message,
+
+    ...(statusCode === 500
+      ? {
+          details: error.message,
+        }
+      : {}),
   });
 };
 
@@ -110,11 +271,20 @@ exports.sendMessage = async (req, res) => {
     if (!message || !message.trim()) {
       return res.status(400).json({
         success: false,
+
         error: "message required",
       });
     }
 
     let conversation = null;
+
+    let isNewConversation = false;
+
+    let titlePromise = null;
+
+    // ----------------------------------
+    // Existing Conversation
+    // ----------------------------------
 
     if (conversationId) {
       conversation = await findOwnedConversation({
@@ -122,7 +292,19 @@ exports.sendMessage = async (req, res) => {
         userId,
         sessionId,
       });
+
+      if (!conversation) {
+        return res.status(404).json({
+          success: false,
+
+          error: "Conversation not found",
+        });
+      }
     }
+
+    // ----------------------------------
+    // New Analysis
+    // ----------------------------------
 
     if (!conversation) {
       conversation = await createNewConversation({
@@ -130,31 +312,51 @@ exports.sendMessage = async (req, res) => {
         sessionId,
         message,
       });
+
+      isNewConversation = true;
+
+      // Start title generation now.
+      // Do NOT await here.
+      titlePromise = startTitleGeneration(message);
     }
 
-    // Previous context only.
-    // Current question is already separately sent
-    // to the AI service.
+    // ----------------------------------
+    // Previous memory only
+    // ----------------------------------
+
     const memoryContext = buildMemoryContext(conversation);
+
+    // ----------------------------------
+    // Save user message
+    // ----------------------------------
 
     conversation.messages.push({
       role: "user",
+
       content: message.trim(),
     });
 
+    conversation.lastActivityAt = new Date();
+
     await conversation.save();
+
+    // ----------------------------------
+    // Main AI Response
+    // ----------------------------------
 
     const aiStartedAt = Date.now();
 
     const aiResponse = await axios.post(
       `${process.env.AI_SERVICE_URL}/api/chat`,
+
       {
         message: message.trim(),
 
         conversation_context: JSON.stringify(memoryContext),
       },
+
       {
-        timeout: 60000,
+        timeout: AI_REQUEST_TIMEOUT_MS,
       },
     );
 
@@ -162,8 +364,31 @@ exports.sendMessage = async (req, res) => {
 
     const reply = aiResponse.data.response;
 
+    if (!reply || !String(reply).trim()) {
+      throw new Error("AI service returned an empty response");
+    }
+
+    // ----------------------------------
+    // Resolve AI title
+    // ----------------------------------
+
+    if (isNewConversation && titlePromise) {
+      const titleResult = await resolveTitleWithTimeout(titlePromise);
+
+      if (titleResult.ready && titleResult.title) {
+        conversation.title = titleResult.title;
+
+        conversation.titleGenerated = true;
+      }
+    }
+
+    // ----------------------------------
+    // Save assistant response
+    // ----------------------------------
+
     conversation.messages.push({
       role: "assistant",
+
       content: reply,
     });
 
@@ -175,12 +400,22 @@ exports.sendMessage = async (req, res) => {
 
     const databaseTime = Date.now() - databaseStartedAt;
 
+    // ----------------------------------
+    // AI title was slower than response
+    // ----------------------------------
+
+    if (isNewConversation && titlePromise && !conversation.titleGenerated) {
+      updateTitleInBackground(conversation._id, titlePromise);
+    }
+
     return res.status(200).json({
       success: true,
 
       conversationId: conversation._id,
 
       title: conversation.title,
+
+      titleGenerated: conversation.titleGenerated,
 
       reply,
 
@@ -197,11 +432,7 @@ exports.sendMessage = async (req, res) => {
   } catch (error) {
     console.error("Send Message Error:", error);
 
-    return res.status(500).json({
-      success: false,
-      error: "Internal server error",
-      details: error.message,
-    });
+    return sendControllerError(res, error);
   }
 };
 
@@ -216,38 +447,67 @@ exports.streamMessage = async (req, res) => {
     if (!message || !message.trim()) {
       return res.status(400).json({
         success: false,
+
         error: "message required",
       });
     }
 
     let conversation = null;
 
-    // Existing chat -> continue.
+    let isNewConversation = false;
+
+    let titlePromise = null;
+
+    // ----------------------------------
+    // Existing conversation
+    // ----------------------------------
+
     if (conversationId) {
       conversation = await findOwnedConversation({
         conversationId,
         userId,
         sessionId,
       });
+
+      if (!conversation) {
+        return res.status(404).json({
+          success: false,
+
+          error: "Conversation not found",
+        });
+      }
     }
 
-    // No active conversation ->
-    // New Analysis creates a fresh document.
+    // ----------------------------------
+    // New Analysis
+    // ----------------------------------
+
     if (!conversation) {
       conversation = await createNewConversation({
         userId,
         sessionId,
         message,
       });
+
+      isNewConversation = true;
+
+      // Start in parallel with main AI.
+      titlePromise = startTitleGeneration(message);
     }
 
-    // IMPORTANT:
-    // Build context BEFORE pushing current user
-    // message, avoiding prompt duplication.
+    // ----------------------------------
+    // Previous conversation context
+    // ----------------------------------
+
     const memoryContext = buildMemoryContext(conversation);
+
+    // ----------------------------------
+    // Save current user message
+    // ----------------------------------
 
     conversation.messages.push({
       role: "user",
+
       content: message.trim(),
     });
 
@@ -255,7 +515,10 @@ exports.streamMessage = async (req, res) => {
 
     await conversation.save();
 
-    // SSE headers
+    // ----------------------------------
+    // SSE Headers
+    // ----------------------------------
+
     res.setHeader("Content-Type", "text/event-stream");
 
     res.setHeader("Cache-Control", "no-cache, no-transform");
@@ -268,9 +531,29 @@ exports.streamMessage = async (req, res) => {
       res.flushHeaders();
     }
 
+    // Send metadata immediately.
+    // Older frontend safely ignores this.
+    res.write(
+      `data:${JSON.stringify({
+        type: "meta",
+
+        conversationId: conversation._id,
+
+        title: conversation.title,
+
+        isNewConversation,
+      })}\n\n`,
+    );
+
     let finalResponse = "";
+
     let upstreamBuffer = "";
+
     let streamFinished = false;
+
+    // ----------------------------------
+    // Call AI Service
+    // ----------------------------------
 
     const aiResponse = await axios({
       method: "POST",
@@ -285,8 +568,12 @@ exports.streamMessage = async (req, res) => {
 
       responseType: "stream",
 
-      timeout: 60000,
+      timeout: AI_REQUEST_TIMEOUT_MS,
     });
+
+    // ----------------------------------
+    // Complete Stream
+    // ----------------------------------
 
     const completeStream = async (upstreamCompleteData = {}) => {
       if (streamFinished) {
@@ -295,9 +582,28 @@ exports.streamMessage = async (req, res) => {
 
       streamFinished = true;
 
+      // ------------------------------
+      // Resolve title
+      // ------------------------------
+
+      if (isNewConversation && titlePromise) {
+        const titleResult = await resolveTitleWithTimeout(titlePromise);
+
+        if (titleResult.ready && titleResult.title) {
+          conversation.title = titleResult.title;
+
+          conversation.titleGenerated = true;
+        }
+      }
+
+      // ------------------------------
+      // Save assistant message
+      // ------------------------------
+
       if (finalResponse.trim()) {
         conversation.messages.push({
           role: "assistant",
+
           content: finalResponse,
         });
       }
@@ -305,6 +611,18 @@ exports.streamMessage = async (req, res) => {
       conversation.lastActivityAt = new Date();
 
       await conversation.save();
+
+      // ------------------------------
+      // Slow title continues later
+      // ------------------------------
+
+      if (isNewConversation && titlePromise && !conversation.titleGenerated) {
+        updateTitleInBackground(conversation._id, titlePromise);
+      }
+
+      // ------------------------------
+      // Complete SSE event
+      // ------------------------------
 
       if (!res.writableEnded && !res.destroyed) {
         res.write(
@@ -316,6 +634,8 @@ exports.streamMessage = async (req, res) => {
             conversationId: conversation._id,
 
             title: conversation.title,
+
+            titleGenerated: conversation.titleGenerated,
           })}\n\n`,
         );
 
@@ -323,10 +643,14 @@ exports.streamMessage = async (req, res) => {
       }
     };
 
+    // ----------------------------------
+    // Receive AI Stream
+    // ----------------------------------
+
     aiResponse.data.on("data", (chunk) => {
       upstreamBuffer += chunk.toString("utf8");
 
-      const events = upstreamBuffer.split("\n\n");
+      const events = upstreamBuffer.split(/\r?\n\r?\n/);
 
       upstreamBuffer = events.pop() || "";
 
@@ -336,7 +660,7 @@ exports.streamMessage = async (req, res) => {
         }
 
         const dataLines = rawEvent
-          .split("\n")
+          .split(/\r?\n/)
           .filter((line) => line.startsWith("data:"));
 
         if (dataLines.length === 0) {
@@ -352,6 +676,10 @@ exports.streamMessage = async (req, res) => {
         try {
           const data = JSON.parse(payload);
 
+          // --------------------------
+          // Content
+          // --------------------------
+
           if (data.type === "content") {
             finalResponse += data.text || "";
 
@@ -360,9 +688,13 @@ exports.streamMessage = async (req, res) => {
             }
           }
 
+          // --------------------------
+          // Complete
+          // --------------------------
+
           if (data.type === "complete") {
             completeStream(data).catch((error) => {
-              console.error("Stream completion error:", error);
+              console.error("Stream Completion Error:", error);
 
               if (!res.writableEnded) {
                 res.write(
@@ -378,7 +710,13 @@ exports.streamMessage = async (req, res) => {
             });
           }
 
+          // --------------------------
+          // Upstream Error
+          // --------------------------
+
           if (data.type === "error") {
+            console.error("AI Service Stream Error:", data.message);
+
             if (!res.writableEnded && !res.destroyed) {
               res.write(`data:${JSON.stringify(data)}\n\n`);
 
@@ -391,13 +729,39 @@ exports.streamMessage = async (req, res) => {
       }
     });
 
+    // ----------------------------------
+    // AI stream ended without complete
+    // ----------------------------------
+
     aiResponse.data.on("end", () => {
-      if (!streamFinished && finalResponse.trim()) {
+      if (streamFinished) {
+        return;
+      }
+
+      if (finalResponse.trim()) {
         completeStream().catch((error) => {
-          console.error("Stream end save error:", error);
+          console.error("Stream End Save Error:", error);
         });
+
+        return;
+      }
+
+      if (!res.writableEnded) {
+        res.write(
+          `data:${JSON.stringify({
+            type: "error",
+
+            message: "AI stream ended without a response",
+          })}\n\n`,
+        );
+
+        res.end();
       }
     });
+
+    // ----------------------------------
+    // AI Stream Error
+    // ----------------------------------
 
     aiResponse.data.on("error", (error) => {
       console.error("AI Stream Error:", error.message);
@@ -415,6 +779,10 @@ exports.streamMessage = async (req, res) => {
       }
     });
 
+    // ----------------------------------
+    // Client Disconnect
+    // ----------------------------------
+
     res.on("close", () => {
       if (!res.writableEnded && aiResponse.data) {
         aiResponse.data.destroy();
@@ -424,17 +792,14 @@ exports.streamMessage = async (req, res) => {
     console.error("Stream Message Error:", error);
 
     if (!res.headersSent) {
-      return res.status(500).json({
-        success: false,
-        error: "Internal server error",
-        details: error.message,
-      });
+      return sendControllerError(res, error);
     }
 
     if (!res.writableEnded) {
       res.write(
         `data:${JSON.stringify({
           type: "error",
+
           message: error.message,
         })}\n\n`,
       );
@@ -455,32 +820,29 @@ exports.getGuestConversations = async (req, res) => {
     if (!sessionId || !sessionId.trim()) {
       return res.status(400).json({
         success: false,
+
         error: "sessionId required",
       });
     }
 
-    // Sidebar does not need complete
-    // message bodies.
     const conversations = await Conversation.find({
       sessionId: sessionId.trim(),
     })
       .sort({
         lastActivityAt: -1,
       })
-      .select("_id title lastActivityAt createdAt updatedAt")
+      .select("_id title titleGenerated lastActivityAt createdAt updatedAt")
       .lean();
 
     return res.json({
       success: true,
+
       conversations,
     });
   } catch (error) {
     console.error("Get Guest Conversations Error:", error);
 
-    return res.status(500).json({
-      success: false,
-      error: error.message,
-    });
+    return sendControllerError(res, error);
   }
 };
 
@@ -494,12 +856,7 @@ exports.getConversationById = async (req, res) => {
 
     const { userId, sessionId } = req.query;
 
-    if (!mongoose.isValidObjectId(conversationId)) {
-      return res.status(400).json({
-        success: false,
-        error: "Invalid conversationId",
-      });
-    }
+    validateConversationId(conversationId);
 
     const owner = getOwnerFilter({
       userId,
@@ -522,15 +879,13 @@ exports.getConversationById = async (req, res) => {
 
     return res.json({
       success: true,
+
       conversation,
     });
   } catch (error) {
     console.error("Get Conversation Error:", error);
 
-    return res.status(500).json({
-      success: false,
-      error: error.message,
-    });
+    return sendControllerError(res, error);
   }
 };
 
@@ -544,13 +899,7 @@ exports.renameConversation = async (req, res) => {
 
     const { title, userId, sessionId } = req.body;
 
-    if (!mongoose.isValidObjectId(conversationId)) {
-      return res.status(400).json({
-        success: false,
-
-        error: "Invalid conversationId",
-      });
-    }
+    validateConversationId(conversationId);
 
     if (!title || !title.trim()) {
       return res.status(400).json({
@@ -573,13 +922,17 @@ exports.renameConversation = async (req, res) => {
 
         ...owner,
       },
+
       {
         $set: {
           title: cleanTitle,
 
-          lastActivityAt: new Date(),
+          // Manual rename should never
+          // be overwritten by AI title.
+          titleGenerated: true,
         },
       },
+
       {
         new: true,
       },
@@ -601,6 +954,8 @@ exports.renameConversation = async (req, res) => {
 
         title: conversation.title,
 
+        titleGenerated: conversation.titleGenerated,
+
         updatedAt: conversation.updatedAt,
 
         lastActivityAt: conversation.lastActivityAt,
@@ -609,11 +964,7 @@ exports.renameConversation = async (req, res) => {
   } catch (error) {
     console.error("Rename Conversation Error:", error);
 
-    return res.status(500).json({
-      success: false,
-
-      error: error.message,
-    });
+    return sendControllerError(res, error);
   }
 };
 
@@ -627,13 +978,7 @@ exports.deleteConversation = async (req, res) => {
 
     const { userId, sessionId } = req.body || {};
 
-    if (!mongoose.isValidObjectId(conversationId)) {
-      return res.status(400).json({
-        success: false,
-
-        error: "Invalid conversationId",
-      });
-    }
+    validateConversationId(conversationId);
 
     const owner = getOwnerFilter({
       userId,
@@ -662,11 +1007,7 @@ exports.deleteConversation = async (req, res) => {
   } catch (error) {
     console.error("Delete Conversation Error:", error);
 
-    return res.status(500).json({
-      success: false,
-
-      error: error.message,
-    });
+    return sendControllerError(res, error);
   }
 };
 
@@ -680,13 +1021,7 @@ exports.getConversationHistory = async (req, res) => {
 
     const { userId, sessionId } = req.query;
 
-    if (!mongoose.isValidObjectId(conversationId)) {
-      return res.status(400).json({
-        success: false,
-
-        error: "Invalid conversationId",
-      });
-    }
+    validateConversationId(conversationId);
 
     const owner = getOwnerFilter({
       userId,
@@ -709,13 +1044,13 @@ exports.getConversationHistory = async (req, res) => {
 
     return res.json({
       success: true,
+
       conversation,
     });
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      error: error.message,
-    });
+    console.error("Get Conversation History Error:", error);
+
+    return sendControllerError(res, error);
   }
 };
 
@@ -741,17 +1076,17 @@ exports.getUserConversations = async (req, res) => {
       .sort({
         lastActivityAt: -1,
       })
-      .select("_id title lastActivityAt createdAt updatedAt")
+      .select("_id title titleGenerated lastActivityAt createdAt updatedAt")
       .lean();
 
     return res.json({
       success: true,
+
       conversations,
     });
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      error: error.message,
-    });
+    console.error("Get User Conversations Error:", error);
+
+    return sendControllerError(res, error);
   }
 };

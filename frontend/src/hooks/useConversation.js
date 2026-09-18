@@ -1,5 +1,4 @@
 import { useState } from "react";
-
 import axios from "axios";
 
 import {
@@ -20,7 +19,7 @@ export default function useConversation() {
   const [loading, setLoading] = useState(false);
 
   // =====================================
-  // Current owner
+  // Owner
   // =====================================
 
   const getOwner = () => {
@@ -38,21 +37,23 @@ export default function useConversation() {
   };
 
   // =====================================
-  // Load Conversation List
+  // Load Conversations
   // =====================================
 
   const loadConversations = async () => {
     try {
       setLoading(true);
 
-      const { userId, sessionId } = getOwner();
+      const owner = getOwner();
 
       let response;
 
-      if (userId) {
-        response = await axios.get(`${API_URL}/api/chat/user/${userId}`);
+      if (owner.userId) {
+        response = await axios.get(`${API_URL}/api/chat/user/${owner.userId}`);
       } else {
-        response = await axios.get(`${API_URL}/api/chat/session/${sessionId}`);
+        response = await axios.get(
+          `${API_URL}/api/chat/session/${owner.sessionId}`,
+        );
       }
 
       const list = response.data.conversations || [];
@@ -81,12 +82,17 @@ export default function useConversation() {
 
       const response = await axios.get(
         `${API_URL}/api/chat/conversation/${conversationId}`,
+
         {
           params: owner,
         },
       );
 
       const conversation = response.data.conversation;
+
+      if (!conversation) {
+        return null;
+      }
 
       setCurrentConversation(conversation);
 
@@ -103,7 +109,7 @@ export default function useConversation() {
   };
 
   // =====================================
-  // Restore Conversation
+  // Restore Current Conversation
   // =====================================
 
   const restoreConversation = async () => {
@@ -115,8 +121,6 @@ export default function useConversation() {
 
     const conversation = await openConversation(conversationId);
 
-    // Conversation may have been deleted
-    // from another tab/session.
     if (!conversation) {
       clearConversation();
     }
@@ -125,7 +129,7 @@ export default function useConversation() {
   };
 
   // =====================================
-  // New Chat
+  // Create New Chat
   // =====================================
 
   const createNewChat = () => {
@@ -150,8 +154,10 @@ export default function useConversation() {
 
       const response = await axios.patch(
         `${API_URL}/api/chat/conversation/${conversationId}/title`,
+
         {
           ...owner,
+
           title: cleanTitle,
         },
       );
@@ -159,13 +165,13 @@ export default function useConversation() {
       const updated = response.data.conversation;
 
       setConversations((previous) =>
-        previous.map((conversation) =>
-          conversation._id === conversationId
+        previous.map((item) =>
+          item._id === conversationId
             ? {
-                ...conversation,
+                ...item,
                 ...updated,
               }
-            : conversation,
+            : item,
         ),
       );
 
@@ -176,6 +182,7 @@ export default function useConversation() {
 
         return {
           ...previous,
+
           ...updated,
         };
       });
@@ -196,12 +203,16 @@ export default function useConversation() {
     try {
       const owner = getOwner();
 
-      await axios.delete(`${API_URL}/api/chat/conversation/${conversationId}`, {
-        data: owner,
-      });
+      await axios.delete(
+        `${API_URL}/api/chat/conversation/${conversationId}`,
+
+        {
+          data: owner,
+        },
+      );
 
       setConversations((previous) =>
-        previous.filter((conversation) => conversation._id !== conversationId),
+        previous.filter((item) => item._id !== conversationId),
       );
 
       if (currentConversation?._id === conversationId) {

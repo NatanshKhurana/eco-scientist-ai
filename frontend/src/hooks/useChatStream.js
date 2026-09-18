@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useRef, useState } from "react";
 
 import {
   getSessionId,
@@ -28,41 +28,48 @@ export default function useChatStream() {
 
     const conversationId = getConversationId();
 
-    setMessages((prev) => [
-      ...prev,
-      {
-        role: "user",
-        content: message.trim(),
-      },
-      {
-        role: "assistant",
-        content: "",
-        streaming: true,
-      },
-    ]);
+    const userMessage = {
+      role: "user",
+
+      content: message.trim(),
+    };
+
+    const assistantMessage = {
+      role: "assistant",
+
+      content: "",
+
+      streaming: true,
+    };
+
+    setMessages((previous) => [...previous, userMessage, assistantMessage]);
 
     setIsStreaming(true);
 
     abortController.current = new AbortController();
 
     try {
-      const response = await fetch(`${API_URL}/api/chat/stream`, {
-        method: "POST",
+      const response = await fetch(
+        `${API_URL}/api/chat/stream`,
 
-        headers: {
-          "Content-Type": "application/json",
+        {
+          method: "POST",
+
+          headers: {
+            "Content-Type": "application/json",
+          },
+
+          body: JSON.stringify({
+            message: message.trim(),
+
+            sessionId,
+
+            conversationId: conversationId || undefined,
+          }),
+
+          signal: abortController.current.signal,
         },
-
-        body: JSON.stringify({
-          message: message.trim(),
-
-          sessionId,
-
-          conversationId: conversationId || undefined,
-        }),
-
-        signal: abortController.current.signal,
-      });
+      );
 
       if (!response.ok) {
         throw new Error("Stream request failed");
@@ -77,7 +84,9 @@ export default function useChatStream() {
       while (true) {
         const { done, value } = await reader.read();
 
-        if (done) break;
+        if (done) {
+          break;
+        }
 
         buffer += decoder.decode(value, {
           stream: true,
@@ -88,33 +97,47 @@ export default function useChatStream() {
         buffer = events.pop();
 
         for (const event of events) {
-          if (!event.trim()) continue;
+          if (!event.trim()) {
+            continue;
+          }
 
-          const dataLine = event
+          const line = event
             .split("\n")
-            .find((line) => line.startsWith("data:"));
+            .find((item) => item.startsWith("data:"));
 
-          if (!dataLine) continue;
+          if (!line) {
+            continue;
+          }
 
-          const json = dataLine.replace("data:", "").trim();
+          const json = line.replace("data:", "").trim();
 
-          if (!json) continue;
+          if (!json) {
+            continue;
+          }
 
-          const data = JSON.parse(json);
+          let data;
 
-          // STREAM CONTENT
+          try {
+            data = JSON.parse(json);
+          } catch {
+            continue;
+          }
+
+          // =====================
+          // Stream Text
+          // =====================
 
           if (data.type === "content") {
-            setMessages((prev) => {
-              const updated = [...prev];
+            setMessages((previous) => {
+              const updated = [...previous];
 
-              const last = updated.length - 1;
+              const index = updated.length - 1;
 
-              if (updated[last]) {
-                updated[last] = {
-                  ...updated[last],
+              if (updated[index]) {
+                updated[index] = {
+                  ...updated[index],
 
-                  content: updated[last].content + data.text,
+                  content: updated[index].content + data.text,
                 };
               }
 
@@ -122,30 +145,36 @@ export default function useChatStream() {
             });
           }
 
-          // STREAM COMPLETE
+          // =====================
+          // Complete
+          // =====================
 
           if (data.type === "complete") {
             if (data.conversationId) {
               setConversationId(data.conversationId);
 
-              // notify sidebar
               window.dispatchEvent(
-                new CustomEvent("conversationCreated", {
-                  detail: {
-                    conversationId: data.conversationId,
+                new CustomEvent(
+                  "conversationCreated",
+
+                  {
+                    detail: {
+                      conversationId: data.conversationId,
+                    },
                   },
-                }),
+                ),
               );
             }
 
-            setMessages((prev) => {
-              const updated = [...prev];
+            setMessages((previous) => {
+              const updated = [...previous];
 
-              const last = updated.length - 1;
+              const index = updated.length - 1;
 
-              if (updated[last]) {
-                updated[last] = {
-                  ...updated[last],
+              if (updated[index]) {
+                updated[index] = {
+                  ...updated[index],
+
                   streaming: false,
                 };
               }
@@ -154,28 +183,32 @@ export default function useChatStream() {
             });
           }
 
-          // ERROR
+          // =====================
+          // Error
+          // =====================
 
           if (data.type === "error") {
             throw new Error(data.message || "Streaming error");
           }
         }
       }
-    } catch (err) {
-      if (err.name === "AbortError") return;
+    } catch (error) {
+      if (error.name === "AbortError") {
+        return;
+      }
 
-      console.error("Chat Stream Error:", err);
+      console.error("Stream error:", error);
 
-      setError(err.message);
+      setError(error.message);
 
-      setMessages((prev) => {
-        const updated = [...prev];
+      setMessages((previous) => {
+        const updated = [...previous];
 
-        const last = updated.length - 1;
+        const index = updated.length - 1;
 
-        if (updated[last]) {
-          updated[last] = {
-            ...updated[last],
+        if (updated[index]) {
+          updated[index] = {
+            ...updated[index],
 
             content: "Something went wrong. Please try again.",
 
