@@ -8,10 +8,16 @@ import { clearConversationId } from "../utils/storage";
 
 import { useAuthContext } from "./AuthContext";
 
+
 const ChatContext = createContext(null);
 
+
+
 export const ChatProvider = ({ children }) => {
+
+
   const {
+
     messages,
 
     setMessages,
@@ -23,9 +29,15 @@ export const ChatProvider = ({ children }) => {
     isStreaming,
 
     error,
+
   } = useChatStream();
 
+
+
+
+
   const {
+
     conversations,
 
     currentConversation,
@@ -41,204 +53,459 @@ export const ChatProvider = ({ children }) => {
     renameConversation,
 
     deleteConversation,
+
   } = useConversation();
+
+
+
+
 
   const { user } = useAuthContext();
 
-  const [activeConversationId, setActiveConversationId] = useState(null);
+
+
+  const [activeConversationId, setActiveConversationId] =
+    useState(null);
+
+
+
+
+
+
+
 
   // ==========================
   // Initial Load
   // ==========================
 
   useEffect(() => {
-    const initialize = async () => {
+
+
+    const initialize = async()=>{
+
+
       await loadConversations();
 
-      const conversation = await restoreConversation();
 
-      if (conversation) {
-        setActiveConversationId(conversation._id);
 
-        setMessages(conversation.messages || []);
+      const conversation =
+        await restoreConversation();
+
+
+
+
+      if(conversation){
+
+
+        setActiveConversationId(
+          conversation._id
+        );
+
+
+        setMessages(
+          conversation.messages || []
+        );
+
+
       }
+
+
     };
 
+
+
     initialize();
+
+
+
   }, []);
 
+
+
+
+
+
+
+
   // ==========================
-  // User Change Handler
+  // User Change
   // ==========================
 
-  useEffect(() => {
-    // user change hone par
-    // old chat memory clear
+  useEffect(()=>{
+
 
     clearConversationId();
 
+
     setActiveConversationId(null);
+
 
     setMessages([]);
 
+
     loadConversations();
-  }, [user]);
+
+
+
+  },[user]);
+
+
+
+
+
+
+
+
 
   // ==========================
   // Guest Merge Refresh
   // ==========================
 
-  useEffect(() => {
-    const refresh = () => {
+  useEffect(()=>{
+
+
+    const refresh = ()=>{
+
+
       clearConversationId();
+
 
       setActiveConversationId(null);
 
+
       setMessages([]);
 
+
       loadConversations();
+
+
     };
+
+
 
     window.addEventListener(
       "conversationRefresh",
-
-      refresh,
+      refresh
     );
 
-    return () => {
+
+
+    return()=>{
+
+
       window.removeEventListener(
         "conversationRefresh",
-
-        refresh,
+        refresh
       );
+
+
     };
-  }, []);
+
+
+  },[]);
+
+
+
+
+
+
+
+
 
   // ==========================
   // Conversation Created
+  // FIX 1
   // ==========================
 
-  useEffect(() => {
-    const handler = async (event) => {
-      const id = event.detail?.conversationId;
+  useEffect(()=>{
 
-      if (!id) return;
+
+    const handler = async(event)=>{
+
+
+      const id =
+        event.detail?.conversationId;
+
+
+
+      if(!id)
+        return;
+
+
+
 
       setActiveConversationId(id);
 
-      const conversation = await openConversation(id);
 
-      if (conversation) {
-        setMessages(conversation.messages || []);
-      }
+
+
+      // ONLY refresh sidebar
+      // Do not overwrite streaming messages
 
       await loadConversations();
+
+
+
     };
+
+
 
     window.addEventListener(
       "conversationCreated",
-
-      handler,
+      handler
     );
 
-    return () => {
+
+
+    return()=>{
+
+
       window.removeEventListener(
         "conversationCreated",
-
-        handler,
+        handler
       );
+
+
     };
-  }, []);
 
-  const selectConversation = async (id) => {
-    if (isStreaming) return;
 
-    const conversation = await openConversation(id);
 
-    if (conversation) {
-      setActiveConversationId(conversation._id);
+  },[]);
 
-      setMessages(conversation.messages || []);
+
+
+
+
+
+
+
+  const selectConversation = async(id)=>{
+
+
+    if(isStreaming)
+      return;
+
+
+
+
+    const conversation =
+      await openConversation(id);
+
+
+
+
+    if(conversation){
+
+
+      setActiveConversationId(
+        conversation._id
+      );
+
+
+      setMessages(
+        conversation.messages || []
+      );
+
+
     }
+
+
   };
 
-  const startNewChat = () => {
-    if (isStreaming) {
+
+
+
+
+
+
+
+
+  const startNewChat = ()=>{
+
+
+    if(isStreaming){
+
       stopStreaming();
+
     }
+
+
 
     clearConversationId();
 
+
     createNewChat();
+
 
     setActiveConversationId(null);
 
+
     setMessages([]);
+
+
+
   };
 
-  const renameChat = async (id, title) => {
-    return await renameConversation(id, title);
+
+
+
+
+
+
+
+
+  const renameChat = async(id,title)=>{
+
+
+    return await renameConversation(
+      id,
+      title
+    );
+
+
   };
 
-  const deleteChat = async (id) => {
-    const success = await deleteConversation(id);
 
-    if (success && activeConversationId === id) {
+
+
+
+
+
+
+
+  const deleteChat = async(id)=>{
+
+
+    const success =
+      await deleteConversation(id);
+
+
+
+
+    if(
+      success &&
+      activeConversationId === id
+    ){
+
+
       clearConversationId();
+
 
       setActiveConversationId(null);
 
+
       setMessages([]);
+
+
     }
+
+
+
 
     await loadConversations();
 
+
+
     return success;
+
+
   };
 
+
+
+
+
+
+
+
   return (
+
     <ChatContext.Provider
+
       value={{
+
         messages,
 
         setMessages,
 
+
         sendMessage,
+
 
         stopStreaming,
 
+
         isStreaming,
+
 
         error,
 
+
         conversations,
+
 
         currentConversation,
 
+
         activeConversationId,
+
 
         selectConversation,
 
+
         startNewChat,
+
 
         renameChat,
 
+
         deleteChat,
 
+
         loadConversations,
+
+
       }}
+
     >
+
+
       {children}
+
+
     </ChatContext.Provider>
+
   );
+
 };
 
-export const useChat = () => {
-  const context = useContext(ChatContext);
 
-  if (!context) {
-    throw new Error("useChat must be used inside ChatProvider");
+
+
+
+
+
+export const useChat = ()=>{
+
+
+  const context =
+    useContext(ChatContext);
+
+
+
+  if(!context){
+
+
+    throw new Error(
+      "useChat must be used inside ChatProvider"
+    );
+
+
   }
 
+
+
   return context;
+
+
 };
