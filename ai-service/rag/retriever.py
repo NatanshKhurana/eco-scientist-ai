@@ -1,11 +1,13 @@
 from langchain_chroma import Chroma
 
-from rag.vectorstore import get_embeddings
-
-VECTOR_DB_PATH = "./vector_db"
-
+from rag.vectorstore import get_embeddings, get_vector_db_path
 
 vector_store = None
+
+
+# =====================================
+# Initialize Retriever
+# =====================================
 
 
 def initialize_retriever():
@@ -13,7 +15,6 @@ def initialize_retriever():
     global vector_store
 
     if vector_store is not None:
-
         return vector_store
 
     print("Loading vector database...")
@@ -21,7 +22,7 @@ def initialize_retriever():
     embeddings = get_embeddings()
 
     vector_store = Chroma(
-        persist_directory=VECTOR_DB_PATH, embedding_function=embeddings
+        persist_directory=get_vector_db_path(), embedding_function=embeddings
     )
 
     print("Vector database loaded successfully")
@@ -29,7 +30,12 @@ def initialize_retriever():
     return vector_store
 
 
-def retrieve_documents(query, k=3):
+# =====================================
+# Retrieve Relevant Knowledge
+# =====================================
+
+
+def retrieve_documents(query, k=5, score_threshold=1.2):
 
     global vector_store
 
@@ -43,11 +49,20 @@ def retrieve_documents(query, k=3):
 
     for doc, score in results:
 
+        score = float(score)
+
+        # Remove weak matches
+
+        if score > score_threshold:
+
+            continue
+
         documents.append(
             {
                 "source": doc.metadata.get("source", "unknown"),
                 "content": doc.page_content,
-                "score": float(score),
+                "score": round(score, 4),
+                "metadata": doc.metadata,
             }
         )
 

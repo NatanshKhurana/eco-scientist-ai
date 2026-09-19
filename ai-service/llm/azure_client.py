@@ -26,7 +26,7 @@ def initialize_llm():
         azure_deployment=os.getenv("AZURE_OPENAI_DEPLOYMENT"),
         api_version=os.getenv("AZURE_OPENAI_API_VERSION"),
         temperature=0.1,
-        max_tokens=650,
+        max_tokens=2000,
         timeout=45,
         max_retries=1,
         streaming=True,

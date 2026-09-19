@@ -1,11 +1,7 @@
-from fastapi import APIRouter
-
-
+from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 
-
 from rag.rag_chain import generate_answer, stream_answer
-
 
 from controllers.ai_controller import generate_response
 
@@ -20,9 +16,15 @@ router = APIRouter()
 @router.post("/chat")
 async def chat(data: dict):
 
-    response = await generate_response(data)
+    try:
 
-    return {"success": True, "response": response}
+        response = await generate_response(data)
+
+        return {"success": True, "response": response}
+
+    except Exception as error:
+
+        raise HTTPException(status_code=500, detail=str(error))
 
 
 # =====================================
@@ -37,8 +39,16 @@ async def chat_stream(data: dict):
 
     conversation_context = data.get("conversation_context", "")
 
+    if not message.strip():
+
+        raise HTTPException(status_code=400, detail="Message required")
+
     return StreamingResponse(
-        stream_answer(message, conversation_context),
+        stream_answer(question=message, conversation_context=conversation_context),
         media_type="text/event-stream",
-        headers={"Cache-Control": "no-cache", "Connection": "keep-alive"},
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
     )

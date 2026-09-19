@@ -2,8 +2,7 @@
 
 :root {
   --primary: #166534;
-  --primary-light: #22c55e;
-  --background: #f8faf7;
+  --background: #ffffff;
 
   font-family:
     Inter,
@@ -31,7 +30,7 @@ body,
 
 body {
   margin: 0;
-  background: var(--background);
+  background: white;
   color: #111827;
 }
 
@@ -39,4 +38,19 @@ button,
 input,
 textarea {
   font-family: inherit;
+}
+
+/* smooth scrollbar */
+
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
 }

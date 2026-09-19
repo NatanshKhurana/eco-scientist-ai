@@ -1,4 +1,4 @@
-from retriever import retrieve_documents
+from rag.retriever import retrieve_documents
 
 
 

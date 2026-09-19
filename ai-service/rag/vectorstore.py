@@ -1,9 +1,13 @@
 from langchain_huggingface import HuggingFaceEmbeddings
-from langchain_community.vectorstores import Chroma
-
+from langchain_chroma import Chroma
 import os
 
 _embeddings = None
+
+
+# =====================================
+# Embedding Model
+# =====================================
 
 
 def get_embeddings():
@@ -18,35 +22,53 @@ def get_embeddings():
             model_name="sentence-transformers/all-MiniLM-L6-v2"
         )
 
-        print("Embedding model loaded successfully")
+        print("Embedding model loaded")
 
     return _embeddings
 
 
-def create_embeddings():
-
-    return get_embeddings()
+# =====================================
+# Vector DB Location
+# =====================================
 
 
 def get_vector_db_path():
 
-    return os.path.join(
-        os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "vector_db"
-    )
+    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+    return os.path.join(base_dir, "vector_db")
+
+
+# =====================================
+# Create Vector Store (Batch Indexing)
+# =====================================
 
 
 def create_vector_store(documents):
 
     if not documents:
-
-        raise ValueError(
-            "No documents found. Please add valid PDF, MD, or TXT files inside knowledge folder."
-        )
+        raise ValueError("No documents found for indexing")
 
     embeddings = get_embeddings()
 
-    vector_store = Chroma.from_documents(
-        documents, embeddings, persist_directory=get_vector_db_path()
-    )
+    path = get_vector_db_path()
+
+    print("Creating vector database:", path)
+
+    vector_store = Chroma(persist_directory=path, embedding_function=embeddings)
+
+    batch_size = 100
+
+    total = len(documents)
+
+    for i in range(0, total, batch_size):
+
+        batch = documents[i : i + batch_size]
+
+        print(f"Adding batch {i}/{total}")
+
+        vector_store.add_documents(batch)
+
+    print("Vector database completed successfully")
 
     return vector_store

@@ -5,66 +5,61 @@ export default function MessageBubble({ message }) {
 
   const isUser = message.role === "user";
 
-  const content = message.content || "";
-
   return (
     <div
       className={`
-      flex
-      mb-5
-      ${isUser ? "justify-end" : "justify-start"}
+        w-full
+        flex
+        mb-8
+        ${isUser ? "justify-end" : "justify-start"}
       `}
     >
-      <div
-        className={`
-        max-w-3xl
-        rounded-2xl
-        px-5
-        py-4
-        shadow-sm
-        wrap-break-words
-        ${
-          isUser
-            ? `
-          bg-green-600
-          text-white
-          `
-            : `
-          bg-white
-          border
-          border-gray-200
-          text-gray-800
-          `
-        }
-        `}
-      >
-        {isUser ? (
-          <p
-            className="
-            whitespace-pre-wrap
+      {isUser ? (
+        <div
+          className="
+            max-w-[75%]
+            bg-green-600
+            text-white
+            px-5
+            py-3
+            rounded-2xl
+            rounded-br-md
+            shadow-sm
+            text-[15px]
             leading-7
-            "
-          >
-            {content}
-          </p>
-        ) : (
-          <MarkdownRenderer content={content} />
-        )}
+            break-words
+          "
+        >
+          {message.content}
+        </div>
+      ) : (
+        <div
+          className="
+            max-w-4xl
+            w-full
+            text-gray-900
+            text-[15px]
+            leading-7
+            break-words
+          "
+        >
+          <MarkdownRenderer content={message.content || ""} />
 
-        {message.streaming && (
-          <span
-            className="
-            inline-block
-            ml-1
-            animate-pulse
-            text-green-600
-            font-bold
-            "
-          >
-            ▌
-          </span>
-        )}
-      </div>
+          {message.streaming && (
+            <span
+              className="
+                inline-block
+                ml-1
+                text-green-600
+                animate-pulse
+                font-bold
+              "
+            >
+              ▌
+            </span>
+          )}
+        </div>
+      )}
     </div>
   );
 }

@@ -1,36 +1,24 @@
 import { useEffect, useRef, useState } from "react";
-
 import MessageBubble from "./MessageBubble";
-
 import { useChat } from "../../context/ChatContext";
 
 export default function ChatWindow() {
   const { messages, isStreaming } = useChat();
 
   const scrollRef = useRef(null);
-
   const containerRef = useRef(null);
 
   const [autoScroll, setAutoScroll] = useState(true);
 
   const [thinking, setThinking] = useState("🌱 Analyzing ecosystem data...");
 
-  // =========================
-  // Thinking Animation
-  // =========================
-
   useEffect(() => {
-    if (!isStreaming) {
-      return;
-    }
+    if (!isStreaming) return;
 
     const texts = [
       "🌱 Analyzing ecosystem data...",
-
       "🌱 Studying environmental factors...",
-
       "🌱 Checking scientific references...",
-
       "🌱 Preparing recommendations...",
     ];
 
@@ -38,16 +26,11 @@ export default function ChatWindow() {
 
     const timer = setInterval(() => {
       index = (index + 1) % texts.length;
-
       setThinking(texts[index]);
     }, 2500);
 
     return () => clearInterval(timer);
   }, [isStreaming]);
-
-  // =========================
-  // Smart Scroll
-  // =========================
 
   useEffect(() => {
     if (autoScroll) {
@@ -58,16 +41,13 @@ export default function ChatWindow() {
   }, [messages, autoScroll]);
 
   const handleScroll = () => {
-    const element = containerRef.current;
+    const el = containerRef.current;
 
-    if (!element) {
-      return;
-    }
+    if (!el) return;
 
-    const bottom =
-      element.scrollHeight - element.scrollTop - element.clientHeight;
+    const bottom = el.scrollHeight - el.scrollTop - el.clientHeight;
 
-    setAutoScroll(bottom < 100);
+    setAutoScroll(bottom < 120);
   };
 
   return (
@@ -77,42 +57,39 @@ export default function ChatWindow() {
       className="
       h-full
       overflow-y-auto
-      p-6
-      bg-gray-50
+      bg-white
+      px-8
+      py-6
       "
     >
       {messages.length === 0 ? (
         <div
           className="
-            h-full
-            flex
-            items-center
-            justify-center
-            "
+          h-full
+          flex
+          items-center
+          justify-center
+          "
         >
           <div className="text-center">
             <h2
               className="
-                text-2xl
-                font-semibold
-                mb-2
-                text-gray-900
-                "
+              text-3xl
+              font-semibold
+              text-gray-900
+              mb-3
+              "
             >
               Ask Eco Scientist AI
             </h2>
 
-            <p
-              className="
-                text-gray-500
-                "
-            >
+            <p className="text-gray-500">
               Analyze environment, climate and biodiversity problems
             </p>
           </div>
         </div>
       ) : (
-        <>
+        <div className="max-w-5xl mx-auto">
           {messages.map((message, index) => (
             <MessageBubble key={index} message={message} />
           ))}
@@ -120,16 +97,16 @@ export default function ChatWindow() {
           {isStreaming && (
             <div
               className="
-                mt-2
-                text-sm
-                text-gray-500
-                animate-pulse
-                "
+              text-sm
+              text-gray-500
+              animate-pulse
+              mt-3
+              "
             >
               {thinking}
             </div>
           )}
-        </>
+        </div>
       )}
 
       <div ref={scrollRef} />
