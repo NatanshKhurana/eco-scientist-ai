@@ -16,9 +16,9 @@ import {
 
 import { Link } from "react-router-dom";
 
-import { useChat } from "../../context/ChatContext";
+import { useChat } from "../../hooks/useChatContext";
 
-import { useAuthContext } from "../../context/AuthContext";
+import { useAuthContext } from "../../hooks/useAuthContext";
 
 
 

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import axios from "axios";
 
 import {
@@ -13,84 +13,73 @@ const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
 const api = axios.create({
   baseURL: API_URL,
-
   withCredentials: true,
 });
 
+const isLoggedIn = () => Boolean(getUser());
+
 export default function useConversation() {
   const [conversations, setConversations] = useState([]);
-
   const [currentConversation, setCurrentConversation] = useState(null);
-
   const [loading, setLoading] = useState(false);
 
-  const isLoggedIn = () => {
-    return Boolean(getUser());
-  };
-
-  const loadConversations = async () => {
+  const loadConversations = useCallback(async () => {
     try {
       setLoading(true);
 
-      let response;
-
-      if (isLoggedIn()) {
-        response = await api.get("/api/chat/user");
-      } else {
-        const sessionId = getSessionId();
-
-        response = await api.get(`/api/chat/session/${sessionId}`);
-      }
+      const response = isLoggedIn()
+        ? await api.get("/api/chat/user")
+        : await api.get(`/api/chat/session/${getSessionId()}`);
 
       const list = response.data.conversations || [];
-
       setConversations(list);
 
       return list;
-    } catch (error) {
+    } catch (requestError) {
       console.error(
         "Load conversations error:",
-        error.response?.data || error.message,
+        requestError.response?.data || requestError.message,
       );
-
       setConversations([]);
 
       return [];
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const openConversation = async (id) => {
+  const openConversation = useCallback(async (id) => {
     try {
       setLoading(true);
 
-      const response = await api.get(`/api/chat/conversation/${id}`);
-
+      const response = await api.get(`/api/chat/conversation/${id}`, {
+        params: isLoggedIn()
+          ? undefined
+          : {
+              sessionId: getSessionId(),
+            },
+      });
       const conversation = response.data.conversation;
 
       setCurrentConversation(conversation);
-
       setConversationId(conversation._id);
 
       return conversation;
-    } catch (error) {
+    } catch (requestError) {
       console.error(
         "Open conversation error:",
-        error.response?.data || error.message,
+        requestError.response?.data || requestError.message,
       );
-
       clearConversation();
-
       setCurrentConversation(null);
 
       return null;
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const restoreConversation = async () => {
+  const restoreConversation = useCallback(async () => {
     const conversationId = getConversationId();
 
     if (!conversationId) {
@@ -104,28 +93,25 @@ export default function useConversation() {
     }
 
     return conversation;
-  };
+  }, [openConversation]);
 
-  const createNewChat = () => {
+  const createNewChat = useCallback(() => {
     clearConversation();
-
     setCurrentConversation(null);
-  };
+  }, []);
 
-  const renameConversation = async (id, title) => {
+  const renameConversation = useCallback(async (id, title) => {
     try {
-      const response = await api.patch(
-        `/api/chat/conversation/${id}/title`,
-
-        {
-          title: title.trim(),
-        },
-      );
-
+      const response = await api.patch(`/api/chat/conversation/${id}/title`, {
+        title: title.trim(),
+        ...(!isLoggedIn() && {
+          sessionId: getSessionId(),
+        }),
+      });
       const updated = response.data.conversation;
 
-      setConversations((prev) =>
-        prev.map((item) =>
+      setConversations((previous) =>
+        previous.map((item) =>
           item._id === id
             ? {
                 ...item,
@@ -134,54 +120,69 @@ export default function useConversation() {
             : item,
         ),
       );
+      setCurrentConversation((previous) =>
+        previous?._id === id
+          ? {
+              ...previous,
+              ...updated,
+            }
+          : previous,
+      );
 
       return true;
-    } catch (error) {
-      console.error("Rename error:", error.response?.data || error.message);
+    } catch (requestError) {
+      console.error(
+        "Rename error:",
+        requestError.response?.data || requestError.message,
+      );
 
       return false;
     }
-  };
+  }, []);
 
-  const deleteConversation = async (id) => {
+  const deleteConversation = useCallback(async (id) => {
     try {
-      await api.delete(`/api/chat/conversation/${id}`);
+      await api.delete(`/api/chat/conversation/${id}`, {
+        data: isLoggedIn()
+          ? undefined
+          : {
+              sessionId: getSessionId(),
+            },
+      });
 
-      setConversations((prev) => prev.filter((item) => item._id !== id));
+      setConversations((previous) =>
+        previous.filter((item) => item._id !== id),
+      );
+      setCurrentConversation((previous) => {
+        if (previous?._id === id) {
+          clearConversation();
+          return null;
+        }
 
-      if (currentConversation?._id === id) {
-        clearConversation();
-
-        setCurrentConversation(null);
-      }
+        return previous;
+      });
 
       return true;
-    } catch (error) {
-      console.error("Delete error:", error.response?.data || error.message);
+    } catch (requestError) {
+      console.error(
+        "Delete error:",
+        requestError.response?.data || requestError.message,
+      );
 
       return false;
     }
-  };
+  }, []);
 
   return {
     conversations,
-
     currentConversation,
-
     loading,
-
     loadConversations,
-
     openConversation,
-
     restoreConversation,
-
     createNewChat,
-
     renameConversation,
-
     deleteConversation,
-
     setConversations,
   };
 }

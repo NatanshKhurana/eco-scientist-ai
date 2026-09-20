@@ -1,340 +1,237 @@
-# 🌱 Eco Scientist AI
+# Eco Scientist AI
 
-AI-powered environmental analysis platform using RAG (Retrieval Augmented Generation), scientific knowledge bases, and Azure GPT.
+Eco Scientist AI is a full-stack environmental analysis assistant. It combines a
+scientific document knowledge base with Azure OpenAI to produce evidence-backed
+assessments for soil health, rainfall, biodiversity, climate stress, and land-use
+problems.
 
-The system analyzes environmental problems like:
+## Architecture
 
-- Low rainfall
-- Soil degradation
-- Biodiversity loss
-- Climate stress
-- Land use impact
+```text
+React + Vite frontend
+        |
+        | HTTP / Server-Sent Events
+        v
+Node.js + Express API ---- MongoDB
+        |
+        | HTTP / Server-Sent Events
+        v
+FastAPI AI service
+        |
+        +---- Azure OpenAI
+        |
+        +---- LangChain + Chroma + HuggingFace embeddings
+                              |
+                              v
+                    Scientific PDF knowledge base
+```
 
-and generates scientific recommendations.
+## Current features
 
----
+### Web application
 
-# 🏗️ System Architecture
+- Streaming chat interface with Markdown and tables
+- Guest conversations backed by a browser session ID
+- Signup, login, logout, and profile restoration
+- HTTP-only JWT authentication
+- Guest conversation migration after login or signup
+- Conversation history, restoration, rename, and delete
+- Automatic AI-generated conversation titles
+- New-chat and stop-stream controls
 
-            User
-             |
-             |
-         Frontend
-        (React/Vite)
-             |
-             |
-    Node.js Express Backend
-             |
-             |
-      FastAPI AI Service
-             |
-    --------------------
-    |                  |
-   RAG              Azure GPT
-    |
-    Chroma Vector DB
-    |
-    Scientific Knowledge Base
+### Backend API
 
+- Authenticated and guest conversation ownership
+- MongoDB persistence for users, messages, titles, and activity timestamps
+- Normal and streaming AI-service proxies
+- Server-Sent Events forwarding with stream buffering
+- Recent-message conversation context
+- Production-aware authentication cookies
 
+### AI service
 
----
+- Retrieval-Augmented Generation using Chroma
+- `sentence-transformers/all-MiniLM-L6-v2` embeddings
+- Azure OpenAI chat generation
+- Normal and streaming response endpoints
+- Multi-turn clarification that accumulates facts supplied by the user
+- Structured environmental assessment, recommendations, metrics, timeline,
+  confidence, and evidence sections
+- Guardrails against invented sources and unsupported numerical claims
 
-# 📂 Project Structure
+## Scientific knowledge base
 
+The current `ai-service/knowledge/` directory contains:
 
+- `fao_recarbonizing_soils_cases.pdf`
+- `fao_recarbonizing_soils_practices.pdf`
+- `fao_soil_resources.pdf`
+- `ipcc_climate_impacts.pdf`
+- `unccd_global_land_outlook.pdf`
 
+The generated Chroma database is stored in `ai-service/vector_db/` and is ignored
+by Git. Rebuild it whenever the knowledge documents or chunking settings change.
+
+## Repository layout
+
+```text
 eco-scientist-ai/
-
-│
-├── frontend/
-│ └── React + Vite Application
-│
-├── backend/
-│ ├── Express API
-│ ├── MongoDB Integration
-│ ├── User Management
-│ └── Conversation Memory
-│
-└── ai-service/
-├── FastAPI Service
-├── RAG Pipeline
-├── Vector Database
-├── Azure OpenAI Integration
-└── Streaming Responses
-
-
-
----
-
-# 🚀 Features
-
-
-## AI Service
-
-✅ Retrieval Augmented Generation (RAG)
-
-✅ Scientific knowledge retrieval
-
-✅ Chroma vector database
-
-✅ HuggingFace embeddings
-
-✅ Azure OpenAI GPT integration
-
-✅ Streaming AI responses using SSE
-
-
----
-
-## Backend
-
-✅ Node.js + Express
-
-✅ MongoDB conversation storage
-
-✅ User management
-
-✅ Chat APIs
-
-✅ AI service proxy
-
-✅ Streaming proxy
-
-
----
-
-## Current AI Capabilities
-
-
-Input:
-
-My farm has low rainfall and biodiversity is decreasing
-
-
-
-Output:
-
-
-Environmental Assessment
-
-Recommendations
-
-Scientific Reasoning
-
-Environmental Metrics
-
-Expected Timeline
-
-Evidence Sources
-
-
-
----
-
-# 🛠️ Local Development Setup
-
+|-- frontend/       React 19 and Vite user interface
+|-- backend/        Express API, authentication, and MongoDB persistence
+|-- ai-service/     FastAPI, Azure OpenAI, RAG, and scientific documents
+`-- README.md
+```
 
 ## Requirements
 
-
-- Node.js 20+
-- Python 3.11+
+- Node.js 20 or newer
+- Python 3.11 or newer
 - MongoDB
-- Azure OpenAI Account
+- An Azure OpenAI deployment
 
+## Configuration
 
----
+Copy each example file to `.env` in the same directory and supply its values.
 
-# 1. Clone Repository
+### `backend/.env`
 
+```dotenv
+PORT=5000
+MONGO_URI=mongodb://127.0.0.1:27017/eco-scientist
+AI_SERVICE_URL=http://localhost:8001
+FRONTEND_URL=http://localhost:5173
+JWT_SECRET=replace-with-a-long-random-secret
+JWT_EXPIRE=7d
+NODE_ENV=development
+```
+
+### `ai-service/.env`
+
+```dotenv
+AZURE_OPENAI_API_KEY=
+AZURE_OPENAI_ENDPOINT=
+AZURE_OPENAI_DEPLOYMENT=
+AZURE_OPENAI_API_VERSION=
+PORT=8001
+HOST=127.0.0.1
+AI_RELOAD=false
+```
+
+### `frontend/.env`
+
+```dotenv
+VITE_API_URL=http://localhost:5000
+```
+
+Never commit `.env`, `node_modules`, virtual environments, or generated vector
+databases.
+
+## Install and run
+
+Open three terminals from the repository root.
+
+### 1. Backend
 
 ```bash
-git clone <repository-url>
-
-cd eco-scientist-ai
-
-2. Backend Setup
 cd backend
-
 npm install
-
-Create:
-
-backend/.env
-
-Add:
-
-PORT=5000
-
-MONGO_URI=
-
-AI_SERVICE_URL=http://localhost:8000
-
-Run:
-
 npm run dev
+```
 
-Backend runs:
+The backend listens on `http://localhost:5000` by default.
 
-http://localhost:5000
-3. AI Service Setup
+### 2. AI service
+
+```bash
 cd ai-service
-
-Create virtual environment:
-
 python -m venv venv
+```
 
-Activate:
+Activate the environment on Windows:
 
-Windows:
+```powershell
+venv\Scripts\Activate.ps1
+```
 
-venv\Scripts\activate
+Then install and start the service:
 
-Install:
-
+```bash
 pip install -r requirements.txt
+uvicorn app:app --reload --port 8001
+```
 
-Create:
+The AI service listens on `http://localhost:8001`. Its readiness endpoint is
+`GET /health`.
 
-ai-service/.env
+### 3. Frontend
 
-Add:
-
-AZURE_OPENAI_API_KEY=
-
-AZURE_OPENAI_ENDPOINT=
-
-AZURE_OPENAI_DEPLOYMENT=
-
-AZURE_OPENAI_API_VERSION=
-
-Run:
-
-uvicorn app:app --reload --port 8000
-
-AI Service:
-
-http://localhost:8000
-4. Frontend Setup
+```bash
 cd frontend
-
 npm install
-
-Create:
-
-frontend/.env
-
-Add:
-
-VITE_API_URL=http://localhost:5000
-
-Run:
-
 npm run dev
-🔌 API Flow
-Frontend
+```
 
-POST /api/chat/stream
+Vite serves the application at `http://localhost:5173` by default.
 
+## Build the vector database
 
-        ↓
+From `ai-service/` with the Python environment active:
 
+```bash
+python rag/indexer.py
+```
 
-Node Backend
+Indexing the large PDFs can take time and requires enough local disk space and
+memory for the embedding model.
 
-localhost:5000
+## API summary
 
+### Authentication
 
-        ↓
+- `POST /api/auth/signup`
+- `POST /api/auth/login`
+- `POST /api/auth/logout`
+- `GET /api/users/profile`
+- `GET /api/users/me`
 
+### Conversations
 
-FastAPI AI Service
+- `POST /api/chat/send`
+- `POST /api/chat/stream`
+- `GET /api/chat/session/:sessionId`
+- `GET /api/chat/user`
+- `GET /api/chat/conversation/:conversationId`
+- `PATCH /api/chat/conversation/:conversationId/title`
+- `DELETE /api/chat/conversation/:conversationId`
+- `POST /api/chat/merge`
 
-localhost:8000
+Authenticated ownership is derived from the verified JWT cookie. Guest requests
+must include their `sessionId`; the API never accepts a client-supplied user ID as
+proof of ownership.
 
+## Tests and validation
 
-        ↓
+Run the local automated checks with:
 
+```bash
+cd frontend
+npm test
+npm run lint
+npm run build
 
-Azure GPT
+cd ../backend
+npm test
 
-🧠 RAG Knowledge Base
+cd ../ai-service
+python -m unittest discover -s tests -v
+```
 
-Current knowledge sources:
+The older top-level Python `test_*.py` files are manual Azure/RAG smoke scripts.
+They require configured Azure credentials and a generated vector database.
 
-knowledge/
+## Current scope
 
-01_soil_health.md
-
-02_biodiversity.md
-
-03_climate.md
-
-04_agroforestry.md
-
-05_land_use.md
-
-📊 Performance
-
-Current optimized pipeline:
-
-Retrieval:
-20-40 ms
-
-
-LLM Response:
-5-10 seconds
-
-
-Streaming:
-Enabled
-
-🔐 Environment Security
-
-Never commit:
-
-.env
-
-node_modules/
-
-venv/
-
-vector_db/
-
-
-Use:
-
-.env.example
-
-for sharing configuration.
-
-📝 Git Commit Convention
-
-Feature:
-
-feat: add feature
-
-Bug Fix:
-
-fix: resolve issue
-
-Performance:
-
-perf: improve latency
-
-Documentation:
-
-docs: update documentation
-📌 Current Version
-v0.1.0
-
-Initial AI backend + RAG architecture
-Future Roadmap
-React AI Chat Interface
-Authentication UI
-User Dashboard
-Farm Data Upload
-Environmental Reports
-Advanced AI Agents
-Production Deployment
+The application is a local-development MVP. MongoDB and Azure OpenAI remain
+external runtime dependencies, so a full end-to-end run requires both services.
+Production deployment, farm-data uploads, richer geospatial analysis, and formal
+evaluation of model answers remain future work.

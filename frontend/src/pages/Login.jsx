@@ -4,7 +4,7 @@ import { Link, useNavigate } from "react-router-dom";
 
 import AuthForm from "../components/auth/AuthForm";
 
-import { useAuthContext } from "../context/AuthContext";
+import { useAuthContext } from "../hooks/useAuthContext";
 
 export default function Login() {
   const { login } = useAuthContext();

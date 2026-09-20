@@ -5,6 +5,11 @@ const Conversation = require("../models/Conversation");
 
 const { generateAITitle } = require("../services/titleService");
 
+const {
+  getOwnerFilter,
+  getOwnerFilterFromRequest,
+} = require("../utils/conversationOwnership");
+
 // ==================================================
 // Configuration
 // ==================================================
@@ -57,38 +62,6 @@ const buildMemoryContext = (conversation) => {
       content: message.content,
     })),
   };
-};
-
-// ==================================================
-// Resolve Conversation Owner
-// ==================================================
-
-const getOwnerFilter = ({ userId, sessionId }) => {
-  if (userId) {
-    if (!mongoose.isValidObjectId(userId)) {
-      const error = new Error("Invalid userId");
-
-      error.statusCode = 400;
-
-      throw error;
-    }
-
-    return {
-      userId,
-    };
-  }
-
-  if (sessionId && sessionId.trim()) {
-    return {
-      sessionId: sessionId.trim(),
-    };
-  }
-
-  const error = new Error("Either userId or sessionId is required");
-
-  error.statusCode = 400;
-
-  throw error;
 };
 
 // ==================================================
@@ -868,28 +841,7 @@ exports.getConversationById = async (req, res) => {
 
     validateConversationId(conversationId);
 
-    let owner = {};
-
-    // Logged user
-
-    if (req.user) {
-      owner = {
-        userId: req.user._id,
-      };
-    }
-
-    // Guest user
-    else if (req.query.sessionId) {
-      owner = {
-        sessionId: req.query.sessionId,
-      };
-    } else {
-      return res.status(401).json({
-        success: false,
-
-        error: "Authentication required",
-      });
-    }
+    const owner = getOwnerFilterFromRequest(req);
 
     const conversation = await Conversation.findOne({
       _id: conversationId,
@@ -925,7 +877,7 @@ exports.renameConversation = async (req, res) => {
   try {
     const { conversationId } = req.params;
 
-    const { title, userId, sessionId } = req.body;
+    const { title } = req.body;
 
     validateConversationId(conversationId);
 
@@ -939,10 +891,7 @@ exports.renameConversation = async (req, res) => {
 
     const cleanTitle = title.trim().replace(/\s+/g, " ").slice(0, 80);
 
-    const owner = getOwnerFilter({
-      userId,
-      sessionId,
-    });
+    const owner = getOwnerFilterFromRequest(req);
 
     const conversation = await Conversation.findOneAndUpdate(
       {
@@ -1004,14 +953,9 @@ exports.deleteConversation = async (req, res) => {
   try {
     const { conversationId } = req.params;
 
-    const { userId, sessionId } = req.body || {};
-
     validateConversationId(conversationId);
 
-    const owner = getOwnerFilter({
-      userId,
-      sessionId,
-    });
+    const owner = getOwnerFilterFromRequest(req);
 
     const conversation = await Conversation.findOneAndDelete({
       _id: conversationId,
@@ -1047,14 +991,9 @@ exports.getConversationHistory = async (req, res) => {
   try {
     const { conversationId } = req.params;
 
-    const { userId, sessionId } = req.query;
-
     validateConversationId(conversationId);
 
-    const owner = getOwnerFilter({
-      userId,
-      sessionId,
-    });
+    const owner = getOwnerFilterFromRequest(req);
 
     const conversation = await Conversation.findOne({
       _id: conversationId,

@@ -1,4 +1,4 @@
-import { useChat } from "../../context/ChatContext";
+import { useChat } from "../../hooks/useChatContext";
 
 function Header() {
   const { currentConversation } = useChat();

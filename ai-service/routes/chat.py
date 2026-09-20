@@ -6,7 +6,11 @@ from rag.rag_chain import stream_answer
 
 from controllers.ai_controller import generate_response
 
-from rag.question_checker import check_question_completeness
+from rag.question_checker import (
+    OUT_OF_SCOPE_MESSAGE,
+    check_question_completeness,
+    is_environmental_question,
+)
 
 import json
 
@@ -171,6 +175,34 @@ After receiving these details, I will generate the complete analysis.
 
 
 
+def out_of_scope_stream():
+
+    yield create_event(
+
+        "content",
+
+        {
+
+            "text": OUT_OF_SCOPE_MESSAGE
+
+        }
+
+    )
+
+
+    yield create_event(
+
+        "complete",
+
+        {
+
+            "out_of_scope": True
+
+        }
+
+    )
+
+
 # =====================================
 # STREAM CHAT API
 # =====================================
@@ -230,6 +262,27 @@ async def chat_stream(data: dict):
 
 
 
+    if not is_environmental_question(message, conversation_context):
+
+        return StreamingResponse(
+
+            out_of_scope_stream(),
+
+            media_type="text/event-stream",
+
+            headers={
+
+                "Cache-Control": "no-cache",
+
+                "Connection": "keep-alive",
+
+                "X-Accel-Buffering": "no"
+
+            }
+
+        )
+
+
     # =====================================
     # CHECK QUESTION COMPLETENESS
     # =====================================
@@ -237,7 +290,9 @@ async def chat_stream(data: dict):
 
     check_result = check_question_completeness(
 
-        message
+        message,
+
+        conversation_context
 
     )
 

@@ -1,13 +1,13 @@
 import { useState, useRef } from "react";
 
-import { useChat } from "../../context/ChatContext";
+import { useChat } from "../../hooks/useChatContext";
 
 export default function ChatInput() {
   const [text, setText] = useState("");
 
   const inputRef = useRef(null);
 
-  const { sendMessage, isStreaming } = useChat();
+  const { sendMessage, stopStreaming, isStreaming } = useChat();
 
   const submit = () => {
     const message = text.trim();
@@ -70,8 +70,8 @@ export default function ChatInput() {
         />
 
         <button
-          onClick={submit}
-          disabled={isStreaming || !text.trim()}
+          onClick={isStreaming ? stopStreaming : submit}
+          disabled={!isStreaming && !text.trim()}
           className="
           bg-green-700
           text-white
@@ -81,7 +81,7 @@ export default function ChatInput() {
           transition
           "
         >
-          {isStreaming ? "Thinking..." : "Send"}
+          {isStreaming ? "Stop" : "Send"}
         </button>
       </div>
     </div>

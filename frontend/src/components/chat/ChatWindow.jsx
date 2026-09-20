@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import MessageBubble from "./MessageBubble";
-import { useChat } from "../../context/ChatContext";
+import { useChat } from "../../hooks/useChatContext";
 
 export default function ChatWindow() {
   const { messages, isStreaming } = useChat();

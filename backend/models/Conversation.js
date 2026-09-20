@@ -58,6 +58,12 @@ const conversationSchema = new mongoose.Schema(
       default: "New Conversation",
     },
 
+    titleGenerated: {
+      type: Boolean,
+
+      default: false,
+    },
+
     summary: {
       type: String,
 

@@ -19,7 +19,7 @@ Ask targeted follow-up questions first.
 
 """
 
-SYSTEM_PROMPT = """
+SYSTEM_PROMPT = f"""
 
 {CLARIFICATION_RULES}
 

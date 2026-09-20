@@ -59,8 +59,10 @@ exports.signup = async (req, res) => {
       });
     }
 
+    const normalizedEmail = email.trim().toLowerCase();
+
     const exists = await User.findOne({
-      email,
+      email: normalizedEmail,
     });
 
     if (exists) {
@@ -74,9 +76,9 @@ exports.signup = async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, 10);
 
     const user = await User.create({
-      name,
+      name: name.trim(),
 
-      email,
+      email: normalizedEmail,
 
       password: hashedPassword,
     });
@@ -89,7 +91,7 @@ exports.signup = async (req, res) => {
       success: true,
 
       user: {
-        id: user._id,
+        _id: user._id,
 
         name: user.name,
 
@@ -124,7 +126,7 @@ exports.login = async (req, res) => {
     }
 
     const user = await User.findOne({
-      email,
+      email: email.trim().toLowerCase(),
     });
 
     if (!user) {
@@ -165,7 +167,7 @@ exports.login = async (req, res) => {
       success: true,
 
       user: {
-        id: user._id,
+        _id: user._id,
 
         name: user.name,
 
@@ -188,7 +190,11 @@ exports.login = async (req, res) => {
 // ======================================
 
 exports.logout = async (req, res) => {
-  res.clearCookie("token");
+  res.clearCookie("token", {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+  });
 
   res.json({
     success: true,

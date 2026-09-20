@@ -2,6 +2,8 @@ from fastapi import FastAPI
 
 from dotenv import load_dotenv
 
+load_dotenv()
+
 from routes.chat import router as chat_router
 
 from routes.title import router as title_router
@@ -9,9 +11,6 @@ from routes.title import router as title_router
 from rag.retriever import initialize_retriever
 
 from llm.azure_client import initialize_llm
-
-
-load_dotenv()
 
 
 

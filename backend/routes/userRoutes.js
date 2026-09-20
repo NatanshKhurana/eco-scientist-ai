@@ -7,16 +7,6 @@ const userController = require("../controllers/userController");
 const authMiddleware = require("../middleware/authMiddleware");
 
 // ========================
-// Auth
-// ========================
-
-router.post("/signup", userController.signup);
-
-router.post("/login", userController.login);
-
-router.post("/logout", userController.logout);
-
-// ========================
 // Profile
 // ========================
 

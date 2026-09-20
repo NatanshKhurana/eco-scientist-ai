@@ -1,21 +1,18 @@
-import { createContext, useContext, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 
 import useAuth from "../hooks/useAuth";
-
-import { getUser, setUser, clearUser } from "../utils/storage";
-
-const AuthContext = createContext(null);
+import {
+  getUser,
+  setUser,
+  clearUser,
+  clearConversationId,
+} from "../utils/storage";
+import { AuthContext } from "./authContextStore";
 
 export const AuthProvider = ({ children }) => {
   const { login, signup, logout, getProfile, mergeGuestChats } = useAuth();
-
   const [user, setUserState] = useState(null);
-
   const [loading, setLoading] = useState(true);
-
-  // ==========================
-  // Restore User
-  // ==========================
 
   useEffect(() => {
     const restore = async () => {
@@ -23,87 +20,58 @@ export const AuthProvider = ({ children }) => {
 
       if (!savedUser) {
         setLoading(false);
-
         return;
       }
 
       setUserState(savedUser);
 
-      try {
-        const profile = await getProfile();
+      const profile = await getProfile();
 
-        if (profile) {
-          setUserState(profile);
-
-          setUser(profile);
-        }
-      } catch (error) {
+      if (profile) {
+        setUserState(profile);
+        setUser(profile);
+      } else {
         clearUser();
-
         setUserState(null);
-      } finally {
-        setLoading(false);
       }
+
+      setLoading(false);
     };
 
-    restore();
-  }, []);
-
-  // ==========================
-  // Login
-  // ==========================
+    void restore();
+  }, [getProfile]);
 
   const handleLogin = async (data) => {
     const response = await login(data);
 
     if (response?.user) {
       setUserState(response.user);
-
       setUser(response.user);
-
       await mergeGuestChats();
-
       window.dispatchEvent(new Event("conversationRefresh"));
     }
 
     return response;
   };
-
-  // ==========================
-  // Signup
-  // ==========================
 
   const handleSignup = async (data) => {
     const response = await signup(data);
 
     if (response?.user) {
       setUserState(response.user);
-
       setUser(response.user);
-
       await mergeGuestChats();
-
       window.dispatchEvent(new Event("conversationRefresh"));
     }
 
     return response;
   };
 
-  // ==========================
-  // Logout
-  // ==========================
-
   const handleLogout = async () => {
     await logout();
-
     clearUser();
-
     setUserState(null);
-
-    // remove old conversation memory
-
-    localStorage.removeItem("conversationId");
-
+    clearConversationId();
     window.dispatchEvent(new Event("conversationRefresh"));
   };
 
@@ -111,29 +79,14 @@ export const AuthProvider = ({ children }) => {
     <AuthContext.Provider
       value={{
         user,
-
         loading,
-
         login: handleLogin,
-
         signup: handleSignup,
-
         logout: handleLogout,
-
         isAuthenticated: Boolean(user),
       }}
     >
       {children}
     </AuthContext.Provider>
   );
-};
-
-export const useAuthContext = () => {
-  const context = useContext(AuthContext);
-
-  if (!context) {
-    throw new Error("useAuthContext must be inside AuthProvider");
-  }
-
-  return context;
 };
